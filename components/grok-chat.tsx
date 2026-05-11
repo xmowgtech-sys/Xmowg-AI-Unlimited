@@ -147,7 +147,12 @@ export function GrokChat() {
   }
 
   const handleSendMessage = async (content: string) => {
-    if (!isPuterReady || !isSignedIn) return
+    if (!isPuterReady) {
+      console.log("[v0] Puter not ready yet")
+      return
+    }
+
+    console.log("[v0] Sending message:", content)
 
     const userMessage: Message = {
       id: `msg_${Date.now()}`,
@@ -175,17 +180,23 @@ export function GrokChat() {
         ...newMessages.map((m) => ({ role: m.role, content: m.content })),
       ]
 
+      console.log("[v0] Calling puter.ai.chat with model x-ai/grok-4-1-fast")
+
       // Call Puter AI with streaming
       const response = await window.puter.ai.chat(conversationHistory, {
-        model: "xai/grok-beta",
+        model: "x-ai/grok-4-1-fast",
         stream: true,
       })
+
+      console.log("[v0] Response received:", response)
 
       let fullResponse = ""
 
       // Handle streaming response
       if (Symbol.asyncIterator in Object(response)) {
+        console.log("[v0] Streaming response detected")
         for await (const chunk of response as AsyncIterable<{ text?: string }>) {
+          console.log("[v0] Chunk received:", chunk)
           if (chunk.text) {
             fullResponse += chunk.text
             setStreamingMessage(fullResponse)
@@ -193,8 +204,10 @@ export function GrokChat() {
         }
       } else {
         // Fallback for non-streaming response
+        console.log("[v0] Non-streaming response")
         const nonStreamResponse = response as { message: { content: string } }
-        fullResponse = nonStreamResponse.message.content
+        fullResponse = nonStreamResponse.message?.content || ""
+        console.log("[v0] Full response:", fullResponse)
       }
 
       const assistantMessage: Message = {
@@ -208,32 +221,34 @@ export function GrokChat() {
       setMessages(updatedMessages)
       setStreamingMessage("")
 
-      // Update chat history
-      const chatTitle =
-        content.length > 30 ? content.substring(0, 30) + "..." : content
+      // Update chat history (only if signed in)
+      if (isSignedIn) {
+        const chatTitle =
+          content.length > 30 ? content.substring(0, 30) + "..." : content
 
-      const existingChatIndex = chatHistory.findIndex((c) => c.id === chatId)
-      let updatedHistory: ChatHistory[]
+        const existingChatIndex = chatHistory.findIndex((c) => c.id === chatId)
+        let updatedHistory: ChatHistory[]
 
-      if (existingChatIndex >= 0) {
-        updatedHistory = [...chatHistory]
-        updatedHistory[existingChatIndex] = {
-          ...updatedHistory[existingChatIndex],
-          messages: updatedMessages,
-          timestamp: Date.now(),
+        if (existingChatIndex >= 0) {
+          updatedHistory = [...chatHistory]
+          updatedHistory[existingChatIndex] = {
+            ...updatedHistory[existingChatIndex],
+            messages: updatedMessages,
+            timestamp: Date.now(),
+          }
+        } else {
+          const newChat: ChatHistory = {
+            id: chatId!,
+            title: chatTitle,
+            timestamp: Date.now(),
+            messages: updatedMessages,
+          }
+          updatedHistory = [newChat, ...chatHistory]
         }
-      } else {
-        const newChat: ChatHistory = {
-          id: chatId!,
-          title: chatTitle,
-          timestamp: Date.now(),
-          messages: updatedMessages,
-        }
-        updatedHistory = [newChat, ...chatHistory]
+
+        setChatHistory(updatedHistory.sort((a, b) => b.timestamp - a.timestamp))
+        await saveChatHistory(updatedHistory)
       }
-
-      setChatHistory(updatedHistory.sort((a, b) => b.timestamp - a.timestamp))
-      await saveChatHistory(updatedHistory)
     } catch (error) {
       console.error("[v0] Error sending message:", error)
       const errorMessage: Message = {
@@ -322,18 +337,14 @@ export function GrokChat() {
                 <Zap size={32} className="text-primary-foreground" />
               </div>
               <h2 className="text-2xl font-semibold mb-2">Welcome to Grok</h2>
-              <p className="text-muted-foreground max-w-md mb-8 leading-relaxed">
+              <p className="text-muted-foreground max-w-md mb-4 leading-relaxed">
                 I&apos;m Grok, your witty AI companion. Ask me anything — I promise to
                 be helpful, slightly sarcastic, and refreshingly direct.
               </p>
               {!isSignedIn && isPuterReady && (
-                <button
-                  onClick={handleSignIn}
-                  className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                >
-                  <LogIn size={18} />
-                  Sign in to Start
-                </button>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Sign in to save your chat history
+                </p>
               )}
             </div>
           ) : (
@@ -361,7 +372,7 @@ export function GrokChat() {
         <ChatInput
           onSend={handleSendMessage}
           isLoading={isLoading}
-          disabled={!isPuterReady || !isSignedIn}
+          disabled={!isPuterReady}
         />
       </main>
     </div>

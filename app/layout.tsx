@@ -42,10 +42,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <head>
-        <Script src="https://js.puter.com/v2/" strategy="beforeInteractive" />
-      </head>
       <body className={`${inter.variable} font-sans antialiased bg-background text-foreground`}>
+        <Script src="https://js.puter.com/v2/" strategy="afterInteractive" />
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
