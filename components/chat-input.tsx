@@ -7,9 +7,10 @@ interface ChatInputProps {
   onSend: (message: string) => void
   isLoading: boolean
   disabled?: boolean
+  placeholder?: string
 }
 
-export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, isLoading, disabled, placeholder }: ChatInputProps) {
   const [input, setInput] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -44,7 +45,7 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={disabled ? "Sign in to start chatting..." : "Message Grok..."}
+            placeholder={placeholder || "Message Grok..."}
             disabled={isLoading || disabled}
             className="flex-1 bg-transparent px-4 py-3 text-foreground placeholder:text-muted-foreground resize-none focus:outline-none min-h-[48px] max-h-[200px] disabled:opacity-50"
             rows={1}
