@@ -1,8 +1,8 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { User, Zap, Copy, Check, Download } from "lucide-react"
-import { useState } from "react"
+import { User, Zap, Copy, Check, Download, FileCode } from "lucide-react"
+import { useState, useMemo } from "react"
 
 interface Message {
   id: string
@@ -18,9 +18,132 @@ interface ChatMessageProps {
   isStreaming?: boolean
 }
 
+interface CodeBlock {
+  language: string
+  code: string
+  filename?: string
+}
+
+// Parse markdown content to extract code blocks
+function parseContent(content: string): { text: string; codeBlocks: CodeBlock[] } {
+  const codeBlockRegex = /```(\w+)?(?:\s+)?(?:\/\/\s*)?(\S+\.\w+)?\n([\s\S]*?)```/g
+  const codeBlocks: CodeBlock[] = []
+  let lastIndex = 0
+  let textParts: string[] = []
+  let match
+
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    // Add text before this code block
+    if (match.index > lastIndex) {
+      textParts.push(content.slice(lastIndex, match.index))
+    }
+
+    const language = match[1] || "plaintext"
+    const filename = match[2] || undefined
+    const code = match[3].trim()
+
+    codeBlocks.push({ language, code, filename })
+    textParts.push(`__CODE_BLOCK_${codeBlocks.length - 1}__`)
+    lastIndex = match.index + match[0].length
+  }
+
+  // Add remaining text
+  if (lastIndex < content.length) {
+    textParts.push(content.slice(lastIndex))
+  }
+
+  return { text: textParts.join(""), codeBlocks }
+}
+
+// Get file extension display name
+function getLanguageDisplay(lang: string): string {
+  const map: Record<string, string> = {
+    javascript: "JavaScript",
+    typescript: "TypeScript",
+    python: "Python",
+    java: "Java",
+    cpp: "C++",
+    c: "C",
+    csharp: "C#",
+    go: "Go",
+    rust: "Rust",
+    ruby: "Ruby",
+    php: "PHP",
+    swift: "Swift",
+    kotlin: "Kotlin",
+    html: "HTML",
+    css: "CSS",
+    scss: "SCSS",
+    json: "JSON",
+    yaml: "YAML",
+    xml: "XML",
+    sql: "SQL",
+    bash: "Bash",
+    shell: "Shell",
+    powershell: "PowerShell",
+    plaintext: "Plain Text",
+    tsx: "TSX",
+    jsx: "JSX",
+    vue: "Vue",
+    svelte: "Svelte",
+    markdown: "Markdown",
+    md: "Markdown",
+  }
+  return map[lang.toLowerCase()] || lang.toUpperCase()
+}
+
+function CodeBlockComponent({ block, index }: { block: CodeBlock; index: number }) {
+  const [copied, setCopied] = useState(false)
+
+  const copyCode = async () => {
+    await navigator.clipboard.writeText(block.code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="my-4 rounded-md border border-border overflow-hidden bg-[#0d0d0d]">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2 bg-[#1a1a1a] border-b border-border">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <FileCode size={14} />
+          <span>{block.filename || getLanguageDisplay(block.language)}</span>
+        </div>
+        <button
+          onClick={copyCode}
+          className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground bg-secondary/50 hover:bg-secondary rounded transition-colors"
+        >
+          {copied ? (
+            <>
+              <Check size={12} />
+              Copied
+            </>
+          ) : (
+            <>
+              <Copy size={12} />
+              Copy code
+            </>
+          )}
+        </button>
+      </div>
+      {/* Code */}
+      <div className="p-4 overflow-x-auto">
+        <pre className="text-sm font-mono leading-relaxed text-foreground/90">
+          <code>{block.code}</code>
+        </pre>
+      </div>
+    </div>
+  )
+}
+
 export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
   const [copied, setCopied] = useState(false)
   const isUser = message.role === "user"
+
+  const { text, codeBlocks } = useMemo(() => {
+    if (isUser) return { text: message.content, codeBlocks: [] }
+    return parseContent(message.content)
+  }, [message.content, isUser])
 
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(message.content)
@@ -35,6 +158,46 @@ export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
       link.download = `grok-image-${Date.now()}.png`
       link.click()
     }
+  }
+
+  // Render text with code block placeholders
+  const renderContent = () => {
+    if (isUser) {
+      return (
+        <div className="text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground/90">
+          {message.content}
+        </div>
+      )
+    }
+
+    const parts = text.split(/(__CODE_BLOCK_\d+__)/)
+    
+    return (
+      <div className="text-sm leading-relaxed text-foreground/90">
+        {parts.map((part, i) => {
+          const codeMatch = part.match(/__CODE_BLOCK_(\d+)__/)
+          if (codeMatch) {
+            const blockIndex = parseInt(codeMatch[1], 10)
+            return (
+              <CodeBlockComponent
+                key={`code-${i}`}
+                block={codeBlocks[blockIndex]}
+                index={blockIndex}
+              />
+            )
+          }
+          // Render regular text with proper formatting
+          return part ? (
+            <span key={`text-${i}`} className="whitespace-pre-wrap break-words">
+              {part}
+            </span>
+          ) : null
+        })}
+        {isStreaming && (
+          <span className="inline-block w-2 h-4 ml-1 bg-primary animate-pulse" />
+        )}
+      </div>
+    )
   }
 
   return (
@@ -93,12 +256,7 @@ export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
           )}
 
           {/* Text content */}
-          <div className="text-sm leading-relaxed whitespace-pre-wrap break-words text-foreground/90">
-            {message.content}
-            {isStreaming && (
-              <span className="inline-block w-2 h-4 ml-1 bg-primary animate-pulse" />
-            )}
-          </div>
+          {renderContent()}
 
           {/* Actions */}
           {!isUser && !isStreaming && message.content && (

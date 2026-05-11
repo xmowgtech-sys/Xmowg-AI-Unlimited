@@ -60,12 +60,12 @@ const CHAT_MODELS = [
   { id: "meta-llama/llama-3.1-70b-instruct", name: "Llama 3.1 70B", provider: "Meta" },
 ]
 
-// Image models
+// Image models - using correct Puter provider/model format
 const IMAGE_MODELS = [
-  { id: "grok-2-image", name: "Grok 2 Image", provider: "xAI" },
-  { id: "stabilityai/stable-diffusion-3-medium", name: "SD 3 Medium", provider: "Stability" },
-  { id: "stabilityai/stable-diffusion-xl-base-1.0", name: "SDXL", provider: "Stability" },
-  { id: "flux/flux.2-pro", name: "FLUX 2 Pro", provider: "Black Forest" },
+  { id: "grok-2-image", name: "Grok 2 Image", provider: "xai", puterProvider: "xai" },
+  { id: "gpt-image-1-mini", name: "GPT Image Mini", provider: "OpenAI", puterProvider: "openai-image-generation" },
+  { id: "dall-e-3", name: "DALL-E 3", provider: "OpenAI", puterProvider: "openai-image-generation" },
+  { id: "black-forest-labs/flux-schnell", name: "FLUX Schnell", provider: "Replicate", puterProvider: "replicate-image-generation" },
 ]
 
 // Code models
@@ -484,20 +484,32 @@ export function GrokChat() {
     // Handle image mode
     if (selectedMode === "image") {
       try {
-        const model = imageModel.id
         let imageElement: HTMLImageElement
 
-        if (model === "grok-2-image") {
-          // xAI Grok image generation
+        // Use proper Puter API format based on provider
+        if (imageModel.puterProvider === "xai") {
           imageElement = await window.puter.ai.txt2img({
             prompt: content,
-            model: "grok-2-image",
             provider: "xai",
           })
+        } else if (imageModel.puterProvider === "openai-image-generation") {
+          imageElement = await window.puter.ai.txt2img({
+            prompt: content,
+            provider: "openai-image-generation",
+            model: imageModel.id,
+          })
+        } else if (imageModel.puterProvider === "replicate-image-generation") {
+          imageElement = await window.puter.ai.txt2img({
+            prompt: content,
+            provider: "replicate-image-generation",
+            model: imageModel.id,
+          })
         } else {
-          // Stability AI or FLUX models
-          imageElement = await window.puter.ai.txt2img(content, { model })
+          // Fallback to simple call
+          imageElement = await window.puter.ai.txt2img(content)
         }
+
+        console.log("[v0] Image element received:", imageElement)
 
         const imageUrl = imageElement?.src || ""
 
