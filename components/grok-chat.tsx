@@ -23,6 +23,8 @@ import {
   MessageSquare,
   Image as ImageIcon,
   Code,
+  Square,
+  FileText,
 } from "lucide-react"
 
 interface Message {
@@ -39,6 +41,7 @@ interface ChatHistory {
   title: string
   timestamp: number
   messages: Message[]
+  mode: "chat" | "image" | "code"
 }
 
 interface UserProfile {
@@ -47,25 +50,51 @@ interface UserProfile {
   lastUpdated: number
 }
 
-const MODELS = [
+// Chat models
+const CHAT_MODELS = [
+  { id: "x-ai/grok-4-1-fast", name: "Grok 4.1 Fast", provider: "xAI" },
   { id: "x-ai/grok-beta", name: "Grok Beta", provider: "xAI" },
-  { id: "meta-llama/llama-3.1-70b-instruct", name: "Llama 3.1 70B", provider: "Meta" },
   { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI" },
+  { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4", provider: "Anthropic" },
   { id: "google/gemini-2.0-flash", name: "Gemini 2.0 Flash", provider: "Google" },
+  { id: "meta-llama/llama-3.1-70b-instruct", name: "Llama 3.1 70B", provider: "Meta" },
+]
+
+// Image models
+const IMAGE_MODELS = [
+  { id: "grok-2-image", name: "Grok 2 Image", provider: "xAI" },
+  { id: "stabilityai/stable-diffusion-3-medium", name: "SD 3 Medium", provider: "Stability" },
+  { id: "stabilityai/stable-diffusion-xl-base-1.0", name: "SDXL", provider: "Stability" },
+  { id: "flux/flux.2-pro", name: "FLUX 2 Pro", provider: "Black Forest" },
+]
+
+// Code models
+const CODE_MODELS = [
+  { id: "x-ai/grok-code-fast-1", name: "Grok Code Fast", provider: "xAI" },
+  { id: "x-ai/grok-4-1-fast", name: "Grok 4.1 Fast", provider: "xAI" },
+  { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4", provider: "Anthropic" },
+  { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI" },
 ]
 
 const MODES = [
   { id: "chat", name: "Chat", icon: MessageSquare },
   { id: "image", name: "Image", icon: ImageIcon },
   { id: "code", name: "Code", icon: Code },
-]
+] as const
+
+type Mode = typeof MODES[number]["id"]
 
 const BASE_SYSTEM_PROMPT = `You are Grok, a witty, rebellious, and highly intelligent AI. You answer with a touch of humor and sarcasm, avoiding corporate-speak. You're direct, sometimes irreverent, but always helpful and informative. You have a personality that's a bit edgy and raw, like a brilliant friend who doesn't mince words.`
 
-const CODE_SYSTEM_PROMPT = `You are Grok, a witty coding assistant. You write clean, efficient code with helpful comments. You explain your code clearly and suggest improvements. You're direct about trade-offs and best practices.`
+const CODE_SYSTEM_PROMPT = `You are Grok, a witty coding assistant. You write clean, efficient code with helpful comments. You explain your code clearly and suggest improvements. You're direct about trade-offs and best practices. Always wrap code in proper markdown code blocks with language specification.`
 
-const STORAGE_KEY = "grok_chat_history"
+const STORAGE_KEYS = {
+  chat: "grok_chat_history",
+  image: "grok_image_history", 
+  code: "grok_code_history",
+}
 const PROFILE_KEY = "grok_user_profile"
+const INSTRUCTIONS_KEY = "grok_custom_instructions"
 
 export function GrokChat() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -78,17 +107,46 @@ export function GrokChat() {
   const [isPuterReady, setIsPuterReady] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState<string>("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
-  // New state for advanced features
-  const [selectedModel, setSelectedModel] = useState(MODELS[0])
-  const [selectedMode, setSelectedMode] = useState(MODES[0])
+  // Mode and model state
+  const [selectedMode, setSelectedMode] = useState<Mode>("chat")
+  const [chatModel, setChatModel] = useState(CHAT_MODELS[0])
+  const [imageModel, setImageModel] = useState(IMAGE_MODELS[0])
+  const [codeModel, setCodeModel] = useState(CODE_MODELS[0])
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false)
+
+  // Features state
   const [isListening, setIsListening] = useState(false)
   const [isTTSEnabled, setIsTTSEnabled] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [messageCount, setMessageCount] = useState(0)
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null)
+  const [customInstructions, setCustomInstructions] = useState("")
+  const [instructionsInput, setInstructionsInput] = useState("")
+
+  const getCurrentModel = useCallback(() => {
+    switch (selectedMode) {
+      case "image": return imageModel
+      case "code": return codeModel
+      default: return chatModel
+    }
+  }, [selectedMode, chatModel, imageModel, codeModel])
+
+  const getModelsForMode = useCallback(() => {
+    switch (selectedMode) {
+      case "image": return IMAGE_MODELS
+      case "code": return CODE_MODELS
+      default: return CHAT_MODELS
+    }
+  }, [selectedMode])
+
+  const setModelForMode = useCallback((model: typeof CHAT_MODELS[0]) => {
+    switch (selectedMode) {
+      case "image": setImageModel(model); break
+      case "code": setCodeModel(model); break
+      default: setChatModel(model)
+    }
+  }, [selectedMode])
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -98,14 +156,13 @@ export function GrokChat() {
     scrollToBottom()
   }, [messages, streamingMessage, scrollToBottom])
 
-  // Initialize Puter and check auth status
+  // Initialize Puter
   useEffect(() => {
     const initPuter = async () => {
       const checkPuter = setInterval(async () => {
         if (typeof window !== "undefined" && window.puter) {
           clearInterval(checkPuter)
           setIsPuterReady(true)
-          console.log("[v0] Puter initialized")
 
           try {
             const signedIn = await window.puter.auth.isSignedIn()
@@ -114,11 +171,12 @@ export function GrokChat() {
             if (signedIn) {
               const user = await window.puter.auth.getUser()
               setUsername(user?.username || null)
-              await loadChatHistory()
+              await loadChatHistory("chat")
               await loadUserProfile()
+              await loadCustomInstructions()
             }
           } catch (error) {
-            console.error("[v0] Error checking auth:", error)
+            console.error("Error checking auth:", error)
           }
         }
       }, 100)
@@ -129,15 +187,27 @@ export function GrokChat() {
     initPuter()
   }, [])
 
-  const loadChatHistory = async () => {
+  // Load chat history when mode changes
+  useEffect(() => {
+    if (isSignedIn && isPuterReady) {
+      loadChatHistory(selectedMode)
+      setMessages([])
+      setCurrentChatId(null)
+    }
+  }, [selectedMode, isSignedIn, isPuterReady])
+
+  const loadChatHistory = async (mode: Mode) => {
     try {
-      const data = await window.puter.kv.get(STORAGE_KEY)
+      const data = await window.puter.kv.get(STORAGE_KEYS[mode])
       if (data) {
         const history: ChatHistory[] = JSON.parse(data)
         setChatHistory(history.sort((a, b) => b.timestamp - a.timestamp))
+      } else {
+        setChatHistory([])
       }
     } catch (error) {
-      console.error("[v0] Error loading chat history:", error)
+      console.error("Error loading chat history:", error)
+      setChatHistory([])
     }
   }
 
@@ -148,7 +218,28 @@ export function GrokChat() {
         setUserProfile(JSON.parse(data))
       }
     } catch (error) {
-      console.error("[v0] Error loading user profile:", error)
+      console.error("Error loading user profile:", error)
+    }
+  }
+
+  const loadCustomInstructions = async () => {
+    try {
+      const data = await window.puter.kv.get(INSTRUCTIONS_KEY)
+      if (data) {
+        setCustomInstructions(data)
+        setInstructionsInput(data)
+      }
+    } catch (error) {
+      console.error("Error loading instructions:", error)
+    }
+  }
+
+  const saveCustomInstructions = async () => {
+    try {
+      await window.puter.kv.set(INSTRUCTIONS_KEY, instructionsInput)
+      setCustomInstructions(instructionsInput)
+    } catch (error) {
+      console.error("Error saving instructions:", error)
     }
   }
 
@@ -157,19 +248,18 @@ export function GrokChat() {
       await window.puter.kv.set(PROFILE_KEY, JSON.stringify(profile))
       setUserProfile(profile)
     } catch (error) {
-      console.error("[v0] Error saving user profile:", error)
+      console.error("Error saving user profile:", error)
     }
   }
 
-  const saveChatHistory = async (history: ChatHistory[]) => {
+  const saveChatHistory = async (history: ChatHistory[], mode: Mode) => {
     try {
-      await window.puter.kv.set(STORAGE_KEY, JSON.stringify(history))
+      await window.puter.kv.set(STORAGE_KEYS[mode], JSON.stringify(history))
     } catch (error) {
-      console.error("[v0] Error saving chat history:", error)
+      console.error("Error saving chat history:", error)
     }
   }
 
-  // Generate chat title using AI
   const generateChatTitle = async (msgs: Message[]): Promise<string> => {
     if (msgs.length < 2) return msgs[0]?.content.substring(0, 30) + "..."
 
@@ -195,7 +285,6 @@ export function GrokChat() {
     }
   }
 
-  // Analyze user traits every 5 messages
   const analyzeUserTraits = async (msgs: Message[]) => {
     if (msgs.length % 5 !== 0 || msgs.length === 0) return
 
@@ -223,9 +312,8 @@ export function GrokChat() {
       }
 
       await saveUserProfile(newProfile)
-      console.log("[v0] User profile updated:", newProfile)
     } catch (error) {
-      console.error("[v0] Error analyzing traits:", error)
+      console.error("Error analyzing traits:", error)
     }
   }
 
@@ -235,10 +323,11 @@ export function GrokChat() {
       setIsSignedIn(true)
       const user = await window.puter.auth.getUser()
       setUsername(user?.username || null)
-      await loadChatHistory()
+      await loadChatHistory(selectedMode)
       await loadUserProfile()
+      await loadCustomInstructions()
     } catch (error) {
-      console.error("[v0] Error signing in:", error)
+      console.error("Error signing in:", error)
     }
   }
 
@@ -252,15 +341,13 @@ export function GrokChat() {
       setCurrentChatId(null)
       setUserProfile(null)
     } catch (error) {
-      console.error("[v0] Error signing out:", error)
+      console.error("Error signing out:", error)
     }
   }
 
   const createNewChat = () => {
-    const newChatId = `chat_${Date.now()}`
-    setCurrentChatId(newChatId)
+    setCurrentChatId(null)
     setMessages([])
-    setGeneratedImage(null)
   }
 
   const selectChat = (chatId: string) => {
@@ -274,7 +361,7 @@ export function GrokChat() {
   const deleteChat = async (chatId: string) => {
     const updatedHistory = chatHistory.filter((c) => c.id !== chatId)
     setChatHistory(updatedHistory)
-    await saveChatHistory(updatedHistory)
+    await saveChatHistory(updatedHistory, selectedMode)
 
     if (currentChatId === chatId) {
       setCurrentChatId(null)
@@ -282,7 +369,6 @@ export function GrokChat() {
     }
   }
 
-  // Voice input using speech recognition
   const toggleVoiceInput = () => {
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
       alert("Speech recognition not supported in this browser")
@@ -311,39 +397,38 @@ export function GrokChat() {
     recognition.start()
   }
 
-  // Text-to-speech for responses
   const speakText = async (text: string) => {
     if (!isTTSEnabled) return
 
     try {
       const audio = await window.puter.ai.txt2speech(text)
       audio.play()
-    } catch (error) {
-      console.error("[v0] TTS error:", error)
-      // Fallback to browser TTS
+    } catch {
       const utterance = new SpeechSynthesisUtterance(text)
       speechSynthesis.speak(utterance)
     }
   }
 
-  // Image generation
-  const generateImage = async (prompt: string) => {
-    setIsLoading(true)
-    try {
-      const result = await window.puter.ai.txt2img(prompt)
-      if (result?.src) {
-        setGeneratedImage(result.src)
-        return result.src
-      }
-    } catch (error) {
-      console.error("[v0] Image generation error:", error)
-    } finally {
-      setIsLoading(false)
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
     }
-    return null
+    setIsLoading(false)
+    
+    // Save the partial response if any
+    if (streamingMessage) {
+      const assistantMessage: Message = {
+        id: `msg_${Date.now()}`,
+        role: "assistant",
+        content: streamingMessage + " [stopped]",
+        timestamp: Date.now(),
+      }
+      setMessages((prev) => [...prev, assistantMessage])
+      setStreamingMessage("")
+    }
   }
 
-  // Share chat
   const shareChat = async () => {
     if (!currentChatId || messages.length === 0) return
 
@@ -352,7 +437,8 @@ export function GrokChat() {
       const shareData = {
         messages,
         createdAt: Date.now(),
-        model: selectedModel.name,
+        model: getCurrentModel().name,
+        mode: selectedMode,
       }
       await window.puter.kv.set(shareKey, JSON.stringify(shareData))
 
@@ -360,7 +446,7 @@ export function GrokChat() {
       await navigator.clipboard.writeText(shareUrl)
       alert("Share link copied to clipboard!")
     } catch (error) {
-      console.error("[v0] Error sharing:", error)
+      console.error("Error sharing:", error)
     }
   }
 
@@ -368,65 +454,120 @@ export function GrokChat() {
     try {
       await window.puter.kv.del(PROFILE_KEY)
       setUserProfile(null)
-      alert("Memory cleared!")
     } catch (error) {
-      console.error("[v0] Error clearing memory:", error)
+      console.error("Error clearing memory:", error)
     }
   }
 
   const handleSendMessage = async (content: string) => {
-    if (!isPuterReady) return
-
-    // Handle image mode
-    if (selectedMode.id === "image") {
-      const userMessage: Message = {
-        id: `msg_${Date.now()}`,
-        role: "user",
-        content,
-        timestamp: Date.now(),
-        type: "text",
-      }
-      setMessages((prev) => [...prev, userMessage])
-      setIsLoading(true)
-
-      const imageUrl = await generateImage(content)
-      
-      const assistantMessage: Message = {
-        id: `msg_${Date.now()}`,
-        role: "assistant",
-        content: imageUrl ? "Here's your generated image:" : "Failed to generate image. Please try again.",
-        timestamp: Date.now(),
-        type: imageUrl ? "image" : "text",
-        imageUrl: imageUrl || undefined,
-      }
-      setMessages((prev) => [...prev, assistantMessage])
-      setIsLoading(false)
-      return
-    }
+    if (!isPuterReady || !content.trim()) return
 
     const userMessage: Message = {
       id: `msg_${Date.now()}`,
       role: "user",
       content,
       timestamp: Date.now(),
+      type: "text",
     }
 
     const newMessages = [...messages, userMessage]
     setMessages(newMessages)
     setIsLoading(true)
     setStreamingMessage("")
-    setMessageCount((c) => c + 1)
 
     let chatId = currentChatId
     if (!chatId) {
-      chatId = `chat_${Date.now()}`
+      chatId = `${selectedMode}_${Date.now()}`
       setCurrentChatId(chatId)
     }
 
-    try {
-      // Build system prompt with user profile
-      let systemPrompt = selectedMode.id === "code" ? CODE_SYSTEM_PROMPT : BASE_SYSTEM_PROMPT
+    // Handle image mode
+    if (selectedMode === "image") {
+      try {
+        const model = imageModel.id
+        let imageElement: HTMLImageElement
 
+        if (model === "grok-2-image") {
+          // xAI Grok image generation
+          imageElement = await window.puter.ai.txt2img({
+            prompt: content,
+            model: "grok-2-image",
+            provider: "xai",
+          })
+        } else {
+          // Stability AI or FLUX models
+          imageElement = await window.puter.ai.txt2img(content, { model })
+        }
+
+        const imageUrl = imageElement?.src || ""
+
+        const assistantMessage: Message = {
+          id: `msg_${Date.now()}`,
+          role: "assistant",
+          content: imageUrl ? "Here's your generated image:" : "Failed to generate image. Please try again.",
+          timestamp: Date.now(),
+          type: imageUrl ? "image" : "text",
+          imageUrl: imageUrl || undefined,
+        }
+        
+        const updatedMessages = [...newMessages, assistantMessage]
+        setMessages(updatedMessages)
+
+        // Save to history
+        if (isSignedIn) {
+          const chatTitle = content.length > 30 ? content.substring(0, 30) + "..." : content
+          const existingChatIndex = chatHistory.findIndex((c) => c.id === chatId)
+          let updatedHistory: ChatHistory[]
+
+          if (existingChatIndex >= 0) {
+            updatedHistory = [...chatHistory]
+            updatedHistory[existingChatIndex] = {
+              ...updatedHistory[existingChatIndex],
+              messages: updatedMessages,
+              timestamp: Date.now(),
+            }
+          } else {
+            const newChat: ChatHistory = {
+              id: chatId!,
+              title: chatTitle,
+              timestamp: Date.now(),
+              messages: updatedMessages,
+              mode: selectedMode,
+            }
+            updatedHistory = [newChat, ...chatHistory]
+          }
+
+          setChatHistory(updatedHistory.sort((a, b) => b.timestamp - a.timestamp))
+          await saveChatHistory(updatedHistory, selectedMode)
+        }
+      } catch (error) {
+        console.error("Image generation error:", error)
+        const errorMessage: Message = {
+          id: `msg_${Date.now()}`,
+          role: "assistant",
+          content: "Failed to generate image. Please try a different prompt or model.",
+          timestamp: Date.now(),
+          type: "text",
+        }
+        setMessages([...newMessages, errorMessage])
+      } finally {
+        setIsLoading(false)
+      }
+      return
+    }
+
+    // Handle chat and code modes
+    try {
+      abortControllerRef.current = new AbortController()
+
+      let systemPrompt = selectedMode === "code" ? CODE_SYSTEM_PROMPT : BASE_SYSTEM_PROMPT
+
+      // Add custom instructions
+      if (customInstructions) {
+        systemPrompt += `\n\nUser's Custom Instructions:\n${customInstructions}`
+      }
+
+      // Add user profile context
       if (userProfile && userProfile.traits.length > 0) {
         systemPrompt += `\n\nUser Context: This user has shown interest in: ${userProfile.traits.join(", ")}. Tailor your responses accordingly.`
       }
@@ -436,10 +577,10 @@ export function GrokChat() {
         ...newMessages.map((m) => ({ role: m.role, content: m.content })),
       ]
 
-      console.log("[v0] Calling puter.ai.chat with model:", selectedModel.id)
+      const model = selectedMode === "code" ? codeModel.id : chatModel.id
 
       const response = await window.puter.ai.chat(conversationHistory, {
-        model: selectedModel.id,
+        model,
         stream: true,
       })
 
@@ -447,6 +588,9 @@ export function GrokChat() {
 
       if (Symbol.asyncIterator in Object(response)) {
         for await (const chunk of response as AsyncIterable<{ text?: string }>) {
+          if (abortControllerRef.current?.signal.aborted) {
+            break
+          }
           if (chunk.text) {
             fullResponse += chunk.text
             setStreamingMessage(fullResponse)
@@ -457,72 +601,76 @@ export function GrokChat() {
         fullResponse = nonStreamResponse.message?.content || ""
       }
 
-      const assistantMessage: Message = {
-        id: `msg_${Date.now()}`,
-        role: "assistant",
-        content: fullResponse,
-        timestamp: Date.now(),
-      }
-
-      const updatedMessages = [...newMessages, assistantMessage]
-      setMessages(updatedMessages)
-      setStreamingMessage("")
-
-      // Speak the response if TTS is enabled
-      if (isTTSEnabled && fullResponse) {
-        speakText(fullResponse)
-      }
-
-      // Analyze traits every 5 messages
-      if (isSignedIn) {
-        analyzeUserTraits(updatedMessages)
-      }
-
-      // Update chat history
-      if (isSignedIn) {
-        const chatTitle =
-          updatedMessages.length === 2
-            ? await generateChatTitle(updatedMessages)
-            : chatHistory.find((c) => c.id === chatId)?.title ||
-              content.substring(0, 30) + "..."
-
-        const existingChatIndex = chatHistory.findIndex((c) => c.id === chatId)
-        let updatedHistory: ChatHistory[]
-
-        if (existingChatIndex >= 0) {
-          updatedHistory = [...chatHistory]
-          updatedHistory[existingChatIndex] = {
-            ...updatedHistory[existingChatIndex],
-            messages: updatedMessages,
-            timestamp: Date.now(),
-          }
-        } else {
-          const newChat: ChatHistory = {
-            id: chatId!,
-            title: chatTitle,
-            timestamp: Date.now(),
-            messages: updatedMessages,
-          }
-          updatedHistory = [newChat, ...chatHistory]
+      if (!abortControllerRef.current?.signal.aborted) {
+        const assistantMessage: Message = {
+          id: `msg_${Date.now()}`,
+          role: "assistant",
+          content: fullResponse,
+          timestamp: Date.now(),
         }
 
-        setChatHistory(updatedHistory.sort((a, b) => b.timestamp - a.timestamp))
-        await saveChatHistory(updatedHistory)
+        const updatedMessages = [...newMessages, assistantMessage]
+        setMessages(updatedMessages)
+        setStreamingMessage("")
+
+        if (isTTSEnabled && fullResponse) {
+          speakText(fullResponse)
+        }
+
+        if (isSignedIn) {
+          analyzeUserTraits(updatedMessages)
+
+          const chatTitle =
+            updatedMessages.length === 2
+              ? await generateChatTitle(updatedMessages)
+              : chatHistory.find((c) => c.id === chatId)?.title ||
+                content.substring(0, 30) + "..."
+
+          const existingChatIndex = chatHistory.findIndex((c) => c.id === chatId)
+          let updatedHistory: ChatHistory[]
+
+          if (existingChatIndex >= 0) {
+            updatedHistory = [...chatHistory]
+            updatedHistory[existingChatIndex] = {
+              ...updatedHistory[existingChatIndex],
+              messages: updatedMessages,
+              timestamp: Date.now(),
+            }
+          } else {
+            const newChat: ChatHistory = {
+              id: chatId!,
+              title: chatTitle,
+              timestamp: Date.now(),
+              messages: updatedMessages,
+              mode: selectedMode,
+            }
+            updatedHistory = [newChat, ...chatHistory]
+          }
+
+          setChatHistory(updatedHistory.sort((a, b) => b.timestamp - a.timestamp))
+          await saveChatHistory(updatedHistory, selectedMode)
+        }
       }
     } catch (error) {
-      console.error("[v0] Error sending message:", error)
-      const errorMessage: Message = {
-        id: `msg_${Date.now()}`,
-        role: "assistant",
-        content: "Hmm, looks like I hit a snag. Try again in a moment.",
-        timestamp: Date.now(),
+      if ((error as Error).name !== "AbortError") {
+        console.error("Error sending message:", error)
+        const errorMessage: Message = {
+          id: `msg_${Date.now()}`,
+          role: "assistant",
+          content: "Something went wrong. Please try again.",
+          timestamp: Date.now(),
+        }
+        setMessages([...newMessages, errorMessage])
+        setStreamingMessage("")
       }
-      setMessages([...newMessages, errorMessage])
-      setStreamingMessage("")
     } finally {
       setIsLoading(false)
+      abortControllerRef.current = null
     }
   }
+
+  const currentModel = getCurrentModel()
+  const modelsForMode = getModelsForMode()
 
   return (
     <div className="flex h-screen bg-background">
@@ -558,23 +706,23 @@ export function GrokChat() {
                 onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary rounded-md hover:bg-secondary/80 transition-colors"
               >
-                <span className="text-muted-foreground">{selectedModel.provider}/</span>
-                <span>{selectedModel.name}</span>
+                <span className="text-muted-foreground hidden sm:inline">{currentModel.provider}/</span>
+                <span>{currentModel.name}</span>
                 <ChevronDown size={14} />
               </button>
 
               {modelDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 w-56 bg-card border border-border rounded-md shadow-lg z-50">
-                  {MODELS.map((model) => (
+                <div className="absolute top-full left-0 mt-1 w-64 bg-card border border-border rounded-md shadow-lg z-50">
+                  {modelsForMode.map((model) => (
                     <button
                       key={model.id}
                       onClick={() => {
-                        setSelectedModel(model)
+                        setModelForMode(model)
                         setModelDropdownOpen(false)
                       }}
                       className={cn(
                         "w-full px-4 py-2 text-left text-sm hover:bg-secondary transition-colors",
-                        selectedModel.id === model.id && "bg-secondary"
+                        currentModel.id === model.id && "bg-secondary"
                       )}
                     >
                       <span className="text-muted-foreground">{model.provider}/</span>
@@ -590,10 +738,10 @@ export function GrokChat() {
               {MODES.map((mode) => (
                 <button
                   key={mode.id}
-                  onClick={() => setSelectedMode(mode)}
+                  onClick={() => setSelectedMode(mode.id)}
                   className={cn(
                     "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded transition-colors",
-                    selectedMode.id === mode.id
+                    selectedMode === mode.id
                       ? "bg-background text-foreground"
                       : "text-muted-foreground hover:text-foreground"
                   )}
@@ -607,7 +755,6 @@ export function GrokChat() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-2">
-            {/* Voice Controls */}
             <button
               onClick={toggleVoiceInput}
               className={cn(
@@ -634,7 +781,6 @@ export function GrokChat() {
               {isTTSEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
             </button>
 
-            {/* Share */}
             <button
               onClick={shareChat}
               className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
@@ -643,7 +789,6 @@ export function GrokChat() {
               <Share2 size={18} />
             </button>
 
-            {/* Settings */}
             <button
               onClick={() => setSettingsOpen(true)}
               className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
@@ -652,7 +797,6 @@ export function GrokChat() {
               <Settings size={18} />
             </button>
 
-            {/* Auth */}
             {isPuterReady ? (
               isSignedIn ? (
                 <div className="flex items-center gap-2 ml-2">
@@ -688,16 +832,31 @@ export function GrokChat() {
           {messages.length === 0 && !streamingMessage ? (
             <div className="flex flex-col items-center justify-center h-full px-4 text-center">
               <div className="w-16 h-16 rounded-md bg-primary flex items-center justify-center mb-6">
-                <Zap size={32} className="text-primary-foreground" />
+                {selectedMode === "image" ? (
+                  <ImageIcon size={32} className="text-primary-foreground" />
+                ) : selectedMode === "code" ? (
+                  <Code size={32} className="text-primary-foreground" />
+                ) : (
+                  <Zap size={32} className="text-primary-foreground" />
+                )}
               </div>
-              <h2 className="text-2xl font-semibold mb-2">Welcome to Grok</h2>
+              <h2 className="text-2xl font-semibold mb-2">
+                {selectedMode === "image"
+                  ? "Image Generation"
+                  : selectedMode === "code"
+                  ? "Code Assistant"
+                  : "Welcome to Grok"}
+              </h2>
               <p className="text-muted-foreground max-w-md mb-4 leading-relaxed">
-                I&apos;m Grok, your witty AI companion. Ask me anything — I promise to
-                be helpful, slightly sarcastic, and refreshingly direct.
+                {selectedMode === "image"
+                  ? "Describe the image you want to create and I'll generate it for you."
+                  : selectedMode === "code"
+                  ? "Ask me to write, explain, or debug any code. I'm here to help."
+                  : "I'm Grok, your witty AI companion. Ask me anything."}
               </p>
               <div className="flex flex-wrap gap-2 justify-center text-xs text-muted-foreground">
-                <span className="px-2 py-1 bg-secondary rounded">{selectedModel.name}</span>
-                <span className="px-2 py-1 bg-secondary rounded">{selectedMode.name} Mode</span>
+                <span className="px-2 py-1 bg-secondary rounded">{currentModel.name}</span>
+                <span className="px-2 py-1 bg-secondary rounded capitalize">{selectedMode} Mode</span>
                 {userProfile && (
                   <span className="px-2 py-1 bg-secondary rounded">Memory Active</span>
                 )}
@@ -719,31 +878,59 @@ export function GrokChat() {
                   isStreaming
                 />
               )}
+              {isLoading && !streamingMessage && (
+                <div className="px-6 py-4">
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <div className="flex gap-1">
+                      <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
+                    <span className="text-sm">
+                      {selectedMode === "image" ? "Generating image..." : "Grok is thinking..."}
+                    </span>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
           )}
         </div>
 
-        {/* Input */}
-        <ChatInput
-          onSend={handleSendMessage}
-          isLoading={isLoading}
-          disabled={!isPuterReady}
-          placeholder={
-            selectedMode.id === "image"
-              ? "Describe the image you want to generate..."
-              : selectedMode.id === "code"
-              ? "Ask me to write some code..."
-              : "Message Grok..."
-          }
-        />
+        {/* Input with Stop Button */}
+        <div className="border-t border-border bg-background/95 backdrop-blur-sm">
+          <div className="max-w-3xl mx-auto px-4 py-4">
+            {isLoading ? (
+              <button
+                onClick={stopGeneration}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
+              >
+                <Square size={16} fill="currentColor" />
+                Stop generating
+              </button>
+            ) : (
+              <ChatInput
+                onSend={handleSendMessage}
+                isLoading={isLoading}
+                disabled={!isPuterReady}
+                placeholder={
+                  selectedMode === "image"
+                    ? "Describe the image you want to generate..."
+                    : selectedMode === "code"
+                    ? "Ask me to write some code..."
+                    : "Message Grok..."
+                }
+              />
+            )}
+          </div>
+        </div>
       </main>
 
       {/* Settings Panel */}
       {settingsOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-lg w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-border">
+          <div className="bg-card border border-border rounded-lg w-full max-w-lg max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-card">
               <h2 className="text-lg font-semibold">Settings</h2>
               <button
                 onClick={() => setSettingsOpen(false)}
@@ -752,7 +939,30 @@ export function GrokChat() {
                 <X size={18} />
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-6">
+              {/* Custom Instructions */}
+              <div>
+                <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <FileText size={14} />
+                  Custom Instructions
+                </h3>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Add custom instructions that Grok will follow in every conversation.
+                </p>
+                <textarea
+                  value={instructionsInput}
+                  onChange={(e) => setInstructionsInput(e.target.value)}
+                  placeholder="e.g., Always respond in a concise manner. Prefer Python for code examples."
+                  className="w-full h-24 px-3 py-2 text-sm bg-input border border-border rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <button
+                  onClick={saveCustomInstructions}
+                  className="mt-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                >
+                  Save Instructions
+                </button>
+              </div>
+
               {/* Memory Section */}
               <div>
                 <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
@@ -774,7 +984,7 @@ export function GrokChat() {
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Sign in to enable adaptive learning
+                    {isSignedIn ? "Memory will build as you chat" : "Sign in to enable adaptive learning"}
                   </p>
                 )}
               </div>
@@ -786,10 +996,12 @@ export function GrokChat() {
                   Help
                 </h3>
                 <div className="text-xs text-muted-foreground space-y-1">
-                  <p>• Switch models using the dropdown in the header</p>
-                  <p>• Use Image mode to generate images with AI</p>
+                  <p>• <strong>Chat Mode:</strong> General conversation with AI</p>
+                  <p>• <strong>Image Mode:</strong> Generate images from descriptions</p>
+                  <p>• <strong>Code Mode:</strong> Programming assistance</p>
                   <p>• Click the mic icon for voice input</p>
-                  <p>• Enable speaker icon for text-to-speech responses</p>
+                  <p>• Enable speaker icon for text-to-speech</p>
+                  <p>• Each mode has its own chat history</p>
                   <p>• The AI learns your preferences over time</p>
                 </div>
               </div>

@@ -53,16 +53,18 @@ declare global {
           options?: {
             model?: string
             stream?: boolean
+            temperature?: number
+            max_tokens?: number
           }
         ) => Promise<
           | { message: { content: string } }
           | AsyncIterable<{ text?: string }>
         >
         txt2img: (
-          prompt: string,
-          options?: { model?: string }
-        ) => Promise<{ src: string } | null>
-        txt2speech: (text: string) => Promise<HTMLAudioElement>
+          promptOrOptions: string | { prompt: string; model?: string; provider?: string },
+          options?: { model?: string; width?: number; height?: number; steps?: number; negative_prompt?: string }
+        ) => Promise<HTMLImageElement>
+        txt2speech: (text: string, options?: { voice?: string }) => Promise<HTMLAudioElement>
       }
       peer: {
         createInvite: () => Promise<string>
