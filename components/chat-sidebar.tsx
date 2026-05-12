@@ -1,13 +1,16 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { PanelLeftClose, PanelLeft, Plus, Trash2, MessageSquare } from "lucide-react"
+import { PanelLeftClose, PanelLeft, Plus, Trash2, MessageSquare, Image as ImageIcon, Code } from "lucide-react"
 
 interface ChatHistory {
   id: string
   title: string
   timestamp: number
+  mode?: "chat" | "image" | "code"
 }
+
+type Mode = "chat" | "image" | "code"
 
 interface ChatSidebarProps {
   isOpen: boolean
@@ -17,7 +20,15 @@ interface ChatSidebarProps {
   onNewChat: () => void
   onSelectChat: (id: string) => void
   onDeleteChat: (id: string) => void
+  selectedMode: Mode
+  onModeChange: (mode: Mode) => void
 }
+
+const MODES = [
+  { id: "chat" as Mode, name: "Chat", icon: MessageSquare },
+  { id: "image" as Mode, name: "Image", icon: ImageIcon },
+  { id: "code" as Mode, name: "Code", icon: Code },
+]
 
 export function ChatSidebar({
   isOpen,
@@ -27,7 +38,17 @@ export function ChatSidebar({
   onNewChat,
   onSelectChat,
   onDeleteChat,
+  selectedMode,
+  onModeChange,
 }: ChatSidebarProps) {
+  const getModeIcon = (mode?: Mode) => {
+    switch (mode) {
+      case "image": return ImageIcon
+      case "code": return Code
+      default: return MessageSquare
+    }
+  }
+
   return (
     <>
       {/* Mobile overlay */}
@@ -61,18 +82,40 @@ export function ChatSidebar({
           </button>
         </div>
 
-        {/* New Chat Button */}
-        <div className="p-3">
+        {/* Mode Icons Row */}
+        <div className={cn(
+          "p-3 border-b border-border",
+          isOpen ? "flex items-center gap-2" : "flex flex-col items-center gap-2"
+        )}>
+          {/* New Chat Button */}
           <button
             onClick={onNewChat}
             className={cn(
-              "flex items-center gap-3 w-full p-3 rounded-md border border-border hover:bg-secondary transition-colors text-foreground",
-              !isOpen && "justify-center"
+              "flex items-center justify-center p-2 rounded-md border border-border hover:bg-secondary transition-colors text-foreground",
+              !isOpen && "w-full"
             )}
+            title="New Chat"
           >
             <Plus size={18} />
-            {isOpen && <span className="text-sm">New Chat</span>}
           </button>
+
+          {/* Mode Icons */}
+          {MODES.map((mode) => (
+            <button
+              key={mode.id}
+              onClick={() => onModeChange(mode.id)}
+              className={cn(
+                "flex items-center justify-center p-2 rounded-md transition-colors",
+                selectedMode === mode.id
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-secondary text-muted-foreground hover:text-foreground",
+                !isOpen && "w-full"
+              )}
+              title={mode.name}
+            >
+              <mode.icon size={18} />
+            </button>
+          ))}
         </div>
 
         {/* Chat History List */}
@@ -83,31 +126,34 @@ export function ChatSidebar({
                 No chat history yet
               </p>
             ) : (
-              chatHistory.map((chat) => (
-                <div
-                  key={chat.id}
-                  className={cn(
-                    "group flex items-center gap-2 p-3 rounded-md cursor-pointer transition-colors",
-                    currentChatId === chat.id
-                      ? "bg-secondary text-foreground"
-                      : "hover:bg-secondary/50 text-muted-foreground hover:text-foreground"
-                  )}
-                  onClick={() => onSelectChat(chat.id)}
-                >
-                  <MessageSquare size={14} className="shrink-0" />
-                  <span className="text-sm truncate flex-1">{chat.title}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDeleteChat(chat.id)
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-all text-muted-foreground hover:text-destructive"
-                    aria-label="Delete chat"
+              chatHistory.map((chat) => {
+                const ModeIcon = getModeIcon(chat.mode)
+                return (
+                  <div
+                    key={chat.id}
+                    className={cn(
+                      "group flex items-center gap-2 p-3 rounded-md cursor-pointer transition-colors",
+                      currentChatId === chat.id
+                        ? "bg-secondary text-foreground"
+                        : "hover:bg-secondary/50 text-muted-foreground hover:text-foreground"
+                    )}
+                    onClick={() => onSelectChat(chat.id)}
                   >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))
+                    <ModeIcon size={14} className="shrink-0" />
+                    <span className="text-sm truncate flex-1">{chat.title}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDeleteChat(chat.id)
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-all text-muted-foreground hover:text-destructive"
+                      aria-label="Delete chat"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )
+              })
             )}
           </div>
         )}

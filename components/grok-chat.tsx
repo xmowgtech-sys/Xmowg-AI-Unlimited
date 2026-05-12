@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { ChatSidebar } from "./chat-sidebar"
 import { ChatMessage } from "./chat-message"
-import { ChatInput } from "./chat-input"
 import { cn } from "@/lib/utils"
 import {
   LogIn,
@@ -23,8 +22,10 @@ import {
   MessageSquare,
   Image as ImageIcon,
   Code,
-  Square,
+  Pause,
   FileText,
+  Plus,
+  Send,
 } from "lucide-react"
 
 interface Message {
@@ -60,12 +61,14 @@ const CHAT_MODELS = [
   { id: "meta-llama/llama-3.1-70b-instruct", name: "Llama 3.1 70B", provider: "Meta" },
 ]
 
-// Image models - using correct Puter provider/model format
+// Image models - using correct Puter txt2img API format
 const IMAGE_MODELS = [
-  { id: "grok-2-image", name: "Grok 2 Image", provider: "xai", puterProvider: "xai" },
-  { id: "gpt-image-1-mini", name: "GPT Image Mini", provider: "OpenAI", puterProvider: "openai-image-generation" },
-  { id: "dall-e-3", name: "DALL-E 3", provider: "OpenAI", puterProvider: "openai-image-generation" },
-  { id: "black-forest-labs/flux-schnell", name: "FLUX Schnell", provider: "Replicate", puterProvider: "replicate-image-generation" },
+  { id: "gpt-image-2", name: "GPT Image 2", provider: "OpenAI" },
+  { id: "dall-e-3", name: "DALL-E 3", provider: "OpenAI" },
+  { id: "dall-e-2", name: "DALL-E 2", provider: "OpenAI" },
+  { id: "gemini-2.5-flash-image-preview", name: "Gemini Flash", provider: "Google" },
+  { id: "black-forest-labs/flux-schnell", name: "FLUX Schnell", provider: "Black Forest" },
+  { id: "stabilityai/stable-diffusion-3-medium", name: "SD 3 Medium", provider: "Stability" },
 ]
 
 // Code models
@@ -106,7 +109,9 @@ export function GrokChat() {
   const [username, setUsername] = useState<string | null>(null)
   const [isPuterReady, setIsPuterReady] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState<string>("")
+  const [inputValue, setInputValue] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   // Mode and model state
@@ -155,6 +160,23 @@ export function GrokChat() {
   useEffect(() => {
     scrollToBottom()
   }, [messages, streamingMessage, scrollToBottom])
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto"
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+    }
+  }, [inputValue])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setModelDropdownOpen(false)
+    if (modelDropdownOpen) {
+      document.addEventListener("click", handleClickOutside)
+      return () => document.removeEventListener("click", handleClickOutside)
+    }
+  }, [modelDropdownOpen])
 
   // Initialize Puter
   useEffect(() => {
@@ -481,35 +503,39 @@ export function GrokChat() {
       setCurrentChatId(chatId)
     }
 
+    // Save user message to chat history immediately before AI responds
+    if (isSignedIn) {
+      const chatTitle = content.length > 30 ? content.substring(0, 30) + "..." : content
+      const existingChatIndex = chatHistory.findIndex((c) => c.id === chatId)
+      let updatedHistory: ChatHistory[]
+
+      if (existingChatIndex >= 0) {
+        updatedHistory = [...chatHistory]
+        updatedHistory[existingChatIndex] = {
+          ...updatedHistory[existingChatIndex],
+          messages: newMessages,
+          timestamp: Date.now(),
+        }
+      } else {
+        const newChat: ChatHistory = {
+          id: chatId!,
+          title: chatTitle,
+          timestamp: Date.now(),
+          messages: newMessages,
+          mode: selectedMode,
+        }
+        updatedHistory = [newChat, ...chatHistory]
+      }
+
+      setChatHistory(updatedHistory.sort((a, b) => b.timestamp - a.timestamp))
+      await saveChatHistory(updatedHistory, selectedMode)
+    }
+
     // Handle image mode
     if (selectedMode === "image") {
       try {
-        let imageElement: HTMLImageElement
-
-        // Use proper Puter API format based on provider
-        if (imageModel.puterProvider === "xai") {
-          imageElement = await window.puter.ai.txt2img({
-            prompt: content,
-            provider: "xai",
-          })
-        } else if (imageModel.puterProvider === "openai-image-generation") {
-          imageElement = await window.puter.ai.txt2img({
-            prompt: content,
-            provider: "openai-image-generation",
-            model: imageModel.id,
-          })
-        } else if (imageModel.puterProvider === "replicate-image-generation") {
-          imageElement = await window.puter.ai.txt2img({
-            prompt: content,
-            provider: "replicate-image-generation",
-            model: imageModel.id,
-          })
-        } else {
-          // Fallback to simple call
-          imageElement = await window.puter.ai.txt2img(content)
-        }
-
-        console.log("[v0] Image element received:", imageElement)
+        // Use correct Puter txt2img API format from docs
+        const imageElement = await window.puter.ai.txt2img(content, { model: imageModel.id })
 
         const imageUrl = imageElement?.src || ""
 
@@ -525,9 +551,8 @@ export function GrokChat() {
         const updatedMessages = [...newMessages, assistantMessage]
         setMessages(updatedMessages)
 
-        // Save to history
+        // Save assistant message to history
         if (isSignedIn) {
-          const chatTitle = content.length > 30 ? content.substring(0, 30) + "..." : content
           const existingChatIndex = chatHistory.findIndex((c) => c.id === chatId)
           let updatedHistory: ChatHistory[]
 
@@ -539,6 +564,7 @@ export function GrokChat() {
               timestamp: Date.now(),
             }
           } else {
+            const chatTitle = content.length > 30 ? content.substring(0, 30) + "..." : content
             const newChat: ChatHistory = {
               id: chatId!,
               title: chatTitle,
@@ -695,6 +721,8 @@ export function GrokChat() {
         onNewChat={createNewChat}
         onSelectChat={selectChat}
         onDeleteChat={deleteChat}
+        selectedMode={selectedMode}
+        onModeChange={setSelectedMode}
       />
 
       {/* Main Content */}
@@ -712,56 +740,16 @@ export function GrokChat() {
               <h1 className="text-lg font-semibold tracking-tight">Grok</h1>
             </div>
 
-            {/* Model Selector */}
-            <div className="relative">
-              <button
-                onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary rounded-md hover:bg-secondary/80 transition-colors"
-              >
-                <span className="text-muted-foreground hidden sm:inline">{currentModel.provider}/</span>
-                <span>{currentModel.name}</span>
-                <ChevronDown size={14} />
-              </button>
-
-              {modelDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 w-64 bg-card border border-border rounded-md shadow-lg z-50">
-                  {modelsForMode.map((model) => (
-                    <button
-                      key={model.id}
-                      onClick={() => {
-                        setModelForMode(model)
-                        setModelDropdownOpen(false)
-                      }}
-                      className={cn(
-                        "w-full px-4 py-2 text-left text-sm hover:bg-secondary transition-colors",
-                        currentModel.id === model.id && "bg-secondary"
-                      )}
-                    >
-                      <span className="text-muted-foreground">{model.provider}/</span>
-                      <span>{model.name}</span>
-                    </button>
-                  ))}
-                </div>
+            {/* Current Mode Indicator */}
+            <div className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary rounded-md">
+              {selectedMode === "image" ? (
+                <ImageIcon size={14} />
+              ) : selectedMode === "code" ? (
+                <Code size={14} />
+              ) : (
+                <MessageSquare size={14} />
               )}
-            </div>
-
-            {/* Mode Toggler */}
-            <div className="flex items-center bg-secondary rounded-md p-0.5">
-              {MODES.map((mode) => (
-                <button
-                  key={mode.id}
-                  onClick={() => setSelectedMode(mode.id)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded transition-colors",
-                    selectedMode === mode.id
-                      ? "bg-background text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <mode.icon size={14} />
-                  <span className="hidden sm:inline">{mode.name}</span>
-                </button>
-              ))}
+              <span className="capitalize">{selectedMode}</span>
             </div>
           </div>
 
@@ -909,22 +897,23 @@ export function GrokChat() {
           )}
         </div>
 
-        {/* Input with Stop Button */}
+        {/* Input with Model Selector and Pause Button */}
         <div className="border-t border-border bg-background/95 backdrop-blur-sm">
           <div className="max-w-3xl mx-auto px-4 py-4">
-            {isLoading ? (
-              <button
-                onClick={stopGeneration}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
-              >
-                <Square size={16} fill="currentColor" />
-                Stop generating
-              </button>
-            ) : (
-              <ChatInput
-                onSend={handleSendMessage}
-                isLoading={isLoading}
-                disabled={!isPuterReady}
+            <div className="relative flex items-end gap-2 bg-input rounded-md border border-border focus-within:border-ring transition-colors">
+              <textarea
+                ref={textareaRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault()
+                    if (inputValue.trim() && !isLoading && isPuterReady) {
+                      handleSendMessage(inputValue.trim())
+                      setInputValue("")
+                    }
+                  }
+                }}
                 placeholder={
                   selectedMode === "image"
                     ? "Describe the image you want to generate..."
@@ -932,8 +921,77 @@ export function GrokChat() {
                     ? "Ask me to write some code..."
                     : "Message Grok..."
                 }
+                disabled={isLoading || !isPuterReady}
+                className="flex-1 bg-transparent px-4 py-3 text-foreground placeholder:text-muted-foreground resize-none focus:outline-none min-h-[48px] max-h-[200px] disabled:opacity-50"
+                rows={1}
               />
-            )}
+              
+              {/* Model selector inline */}
+              <div className="relative pb-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setModelDropdownOpen(!modelDropdownOpen)
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-secondary rounded hover:bg-secondary/80 transition-colors whitespace-nowrap"
+                >
+                  <span className="text-muted-foreground">{currentModel.name}</span>
+                  <ChevronDown size={12} />
+                </button>
+                
+                {modelDropdownOpen && (
+                  <div 
+                    className="absolute bottom-full right-0 mb-1 w-56 bg-card border border-border rounded-md shadow-lg z-50"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {modelsForMode.map((model) => (
+                      <button
+                        key={model.id}
+                        onClick={() => {
+                          setModelForMode(model)
+                          setModelDropdownOpen(false)
+                        }}
+                        className={cn(
+                          "w-full px-3 py-2 text-left text-xs hover:bg-secondary transition-colors",
+                          currentModel.id === model.id && "bg-secondary"
+                        )}
+                      >
+                        <span className="text-muted-foreground">{model.provider}/</span>
+                        <span>{model.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Send or Pause button */}
+              {isLoading ? (
+                <button
+                  onClick={stopGeneration}
+                  className="m-2 p-2 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all"
+                  aria-label="Stop generating"
+                >
+                  <Pause size={18} />
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    if (inputValue.trim() && !isLoading && isPuterReady) {
+                      handleSendMessage(inputValue.trim())
+                      setInputValue("")
+                    }
+                  }}
+                  disabled={!inputValue.trim() || isLoading || !isPuterReady}
+                  className="m-2 p-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  aria-label="Send message"
+                >
+                  <Send size={18} />
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground text-center mt-3">
+              Grok can make mistakes. Consider checking important information.
+            </p>
           </div>
         </div>
       </main>

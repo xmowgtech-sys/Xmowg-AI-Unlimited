@@ -61,8 +61,8 @@ declare global {
           | AsyncIterable<{ text?: string }>
         >
         txt2img: (
-          promptOrOptions: string | { prompt: string; model?: string; provider?: string },
-          options?: { model?: string; width?: number; height?: number; steps?: number; negative_prompt?: string }
+          prompt: string,
+          options?: { model?: string; quality?: string; width?: number; height?: number; steps?: number; negative_prompt?: string }
         ) => Promise<HTMLImageElement>
         txt2speech: (text: string, options?: { voice?: string }) => Promise<HTMLAudioElement>
       }
