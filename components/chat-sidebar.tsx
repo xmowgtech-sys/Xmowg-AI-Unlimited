@@ -1,7 +1,8 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { PanelLeftClose, PanelLeft, Plus, Trash2, MessageSquare, Image as ImageIcon, Code } from "lucide-react"
+import { PanelLeftClose, PanelLeft, Plus, Trash2, MessageSquare, Image as ImageIcon, Code, Mic, Sparkles, GalleryHorizontalEnd } from "lucide-react"
+import Link from "next/link"
 
 interface ChatHistory {
   id: string
@@ -10,7 +11,7 @@ interface ChatHistory {
   mode?: "chat" | "image" | "code"
 }
 
-type Mode = "chat" | "image" | "code"
+type Mode = "chat" | "image" | "code" | "voice"
 
 interface ChatSidebarProps {
   isOpen: boolean
@@ -28,6 +29,7 @@ const MODES = [
   { id: "chat" as Mode, name: "Chat", icon: MessageSquare },
   { id: "image" as Mode, name: "Image", icon: ImageIcon },
   { id: "code" as Mode, name: "Code", icon: Code },
+  { id: "voice" as Mode, name: "Voice", icon: Mic },
 ]
 
 export function ChatSidebar({
@@ -45,6 +47,7 @@ export function ChatSidebar({
     switch (mode) {
       case "image": return ImageIcon
       case "code": return Code
+      case "voice": return Mic
       default: return MessageSquare
     }
   }
@@ -116,6 +119,24 @@ export function ChatSidebar({
               <mode.icon size={18} />
             </button>
           ))}
+        </div>
+
+        {/* Gallery Link */}
+        <div className={cn(
+          "p-3 border-b border-border",
+          isOpen ? "" : "flex justify-center"
+        )}>
+          <Link
+            href="/gallery"
+            className={cn(
+              "flex items-center gap-2 p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground w-full",
+              !isOpen && "justify-center"
+            )}
+            title="Image Gallery"
+          >
+            <GalleryHorizontalEnd size={18} />
+            {isOpen && <span className="text-sm">Image Gallery</span>}
+          </Link>
         </div>
 
         {/* Chat History List */}

@@ -7,8 +7,8 @@ import './globals.css'
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: 'Grok Chat',
-  description: 'A premium AI chat interface powered by Grok',
+  title: 'Xmowg AI - Advanced Multi-Model AI Assistant',
+  description: 'Premium AI assistant with chat, voice, image generation, and code assistance powered by Grok, GPT-5, Claude, and more',
   generator: 'v0.app',
   icons: {
     icon: [

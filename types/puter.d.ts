@@ -64,7 +64,11 @@ declare global {
           prompt: string,
           options?: { model?: string; quality?: string; width?: number; height?: number; steps?: number; negative_prompt?: string }
         ) => Promise<HTMLImageElement>
-        txt2speech: (text: string, options?: { voice?: string }) => Promise<HTMLAudioElement>
+        txt2speech: (text: string, options?: { 
+          provider?: string
+          voice?: string
+          output_format?: string 
+        }) => Promise<HTMLAudioElement>
       }
       peer: {
         createInvite: () => Promise<string>
