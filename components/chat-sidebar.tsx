@@ -1,17 +1,30 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { PanelLeftClose, PanelLeft, Plus, Trash2, MessageSquare, Image as ImageIcon, Code, Mic, Sparkles, GalleryHorizontalEnd } from "lucide-react"
+import { 
+  PanelLeftClose, 
+  PanelLeft, 
+  Plus, 
+  Trash2, 
+  MessageSquare, 
+  Image as ImageIcon, 
+  Code, 
+  Mic, 
+  GalleryHorizontalEnd,
+  Video,
+  FolderOpen
+} from "lucide-react"
 import Link from "next/link"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface ChatHistory {
   id: string
   title: string
   timestamp: number
-  mode?: "chat" | "image" | "code"
+  mode?: "chat" | "image" | "code" | "video"
 }
 
-type Mode = "chat" | "image" | "code" | "voice"
+type Mode = "chat" | "image" | "code" | "video" | "voice"
 
 interface ChatSidebarProps {
   isOpen: boolean
@@ -28,6 +41,7 @@ interface ChatSidebarProps {
 const MODES = [
   { id: "chat" as Mode, name: "Chat", icon: MessageSquare },
   { id: "image" as Mode, name: "Image", icon: ImageIcon },
+  { id: "video" as Mode, name: "Video", icon: Video },
   { id: "code" as Mode, name: "Code", icon: Code },
   { id: "voice" as Mode, name: "Voice", icon: Mic },
 ]
@@ -43,9 +57,10 @@ export function ChatSidebar({
   selectedMode,
   onModeChange,
 }: ChatSidebarProps) {
-  const getModeIcon = (mode?: Mode) => {
+  const getModeIcon = (mode?: string) => {
     switch (mode) {
       case "image": return ImageIcon
+      case "video": return Video
       case "code": return Code
       case "voice": return Mic
       default: return MessageSquare
@@ -78,7 +93,7 @@ export function ChatSidebar({
           )}
           <button
             onClick={onToggle}
-            className="p-2 hover:bg-secondary rounded-md transition-colors text-muted-foreground hover:text-foreground"
+            className="p-2 hover:bg-secondary rounded-lg transition-colors text-muted-foreground hover:text-foreground"
             aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
           >
             {isOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
@@ -94,7 +109,7 @@ export function ChatSidebar({
           <button
             onClick={onNewChat}
             className={cn(
-              "flex items-center justify-center p-2 rounded-md border border-border hover:bg-secondary transition-colors text-foreground",
+              "flex items-center justify-center p-2 rounded-lg border border-border hover:bg-secondary hover:border-primary/50 transition-colors text-foreground",
               !isOpen && "w-full"
             )}
             title="New Chat"
@@ -108,9 +123,9 @@ export function ChatSidebar({
               key={mode.id}
               onClick={() => onModeChange(mode.id)}
               className={cn(
-                "flex items-center justify-center p-2 rounded-md transition-colors",
+                "flex items-center justify-center p-2 rounded-lg transition-all",
                 selectedMode === mode.id
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-gradient-to-r from-primary to-purple-500 text-primary-foreground shadow-md"
                   : "hover:bg-secondary text-muted-foreground hover:text-foreground",
                 !isOpen && "w-full"
               )}
@@ -121,15 +136,15 @@ export function ChatSidebar({
           ))}
         </div>
 
-        {/* Gallery Link */}
+        {/* Gallery Links */}
         <div className={cn(
-          "p-3 border-b border-border",
-          isOpen ? "" : "flex justify-center"
+          "p-3 border-b border-border space-y-2",
+          isOpen ? "" : "flex flex-col items-center"
         )}>
           <Link
             href="/gallery"
             className={cn(
-              "flex items-center gap-2 p-2 rounded-md hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground w-full",
+              "flex items-center gap-2 p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground w-full",
               !isOpen && "justify-center"
             )}
             title="Image Gallery"
@@ -137,46 +152,70 @@ export function ChatSidebar({
             <GalleryHorizontalEnd size={18} />
             {isOpen && <span className="text-sm">Image Gallery</span>}
           </Link>
+          <Link
+            href="/gallery?tab=video"
+            className={cn(
+              "flex items-center gap-2 p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground w-full",
+              !isOpen && "justify-center"
+            )}
+            title="Video Gallery"
+          >
+            <Video size={18} />
+            {isOpen && <span className="text-sm">Video Gallery</span>}
+          </Link>
+          <Link
+            href="/gallery?tab=folders"
+            className={cn(
+              "flex items-center gap-2 p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground w-full",
+              !isOpen && "justify-center"
+            )}
+            title="Folders"
+          >
+            <FolderOpen size={18} />
+            {isOpen && <span className="text-sm">Folders</span>}
+          </Link>
         </div>
 
         {/* Chat History List */}
         {isOpen && (
-          <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          <ScrollArea className="flex-1 p-3">
             {chatHistory.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">
                 No chat history yet
               </p>
             ) : (
-              chatHistory.map((chat) => {
-                const ModeIcon = getModeIcon(chat.mode)
-                return (
-                  <div
-                    key={chat.id}
-                    className={cn(
-                      "group flex items-center gap-2 p-3 rounded-md cursor-pointer transition-colors",
-                      currentChatId === chat.id
-                        ? "bg-secondary text-foreground"
-                        : "hover:bg-secondary/50 text-muted-foreground hover:text-foreground"
-                    )}
-                    onClick={() => onSelectChat(chat.id)}
-                  >
-                    <ModeIcon size={14} className="shrink-0" />
-                    <span className="text-sm truncate flex-1">{chat.title}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onDeleteChat(chat.id)
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-all text-muted-foreground hover:text-destructive"
-                      aria-label="Delete chat"
+              <div className="space-y-1">
+                {chatHistory.map((chat) => {
+                  const ModeIcon = getModeIcon(chat.mode)
+                  return (
+                    <div
+                      key={chat.id}
+                      className={cn(
+                        "group flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-all",
+                        currentChatId === chat.id
+                          ? "bg-secondary text-foreground"
+                          : "hover:bg-secondary/50 text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={() => onSelectChat(chat.id)}
                     >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                )
-              })
+                      <ModeIcon size={14} className="shrink-0" />
+                      <span className="text-sm truncate flex-1">{chat.title}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDeleteChat(chat.id)
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-all text-muted-foreground hover:text-destructive"
+                        aria-label="Delete chat"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
             )}
-          </div>
+          </ScrollArea>
         )}
       </aside>
     </>

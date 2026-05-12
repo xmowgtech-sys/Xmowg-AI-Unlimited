@@ -69,6 +69,16 @@ declare global {
           voice?: string
           output_format?: string 
         }) => Promise<HTMLAudioElement>
+        txt2vid: (
+          prompt: string,
+          options?: {
+            model?: string
+            seconds?: number
+            size?: string
+            test_mode?: boolean
+            negative_prompt?: string
+          }
+        ) => Promise<HTMLVideoElement>
       }
       peer: {
         createInvite: () => Promise<string>
