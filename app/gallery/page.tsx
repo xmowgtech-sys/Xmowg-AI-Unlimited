@@ -72,18 +72,18 @@ const VIDEO_IDEAS = [
 
 export default function GalleryPage() {
   const searchParams = useSearchParams()
-  const initialTab = searchParams.get("tab") as "image" | "video" | "folders" | null
+  const initialTab = searchParams.get("tab") as "image" | "video" | "folders" | "ideas" | null
   
   const [isPuterReady, setIsPuterReady] = useState(false)
   const [isSignedIn, setIsSignedIn] = useState(false)
-  const [activeTab, setActiveTab] = useState<"image" | "video" | "folders">(initialTab || "image")
+  const [activeTab, setActiveTab] = useState<"image" | "video" | "folders">(initialTab === "ideas" ? "image" : initialTab || "image")
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
   const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([])
   const [folders, setFolders] = useState<Folder[]>([])
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [newFolderName, setNewFolderName] = useState("")
   const [showNewFolderInput, setShowNewFolderInput] = useState(false)
-  const [showIdeas, setShowIdeas] = useState(false)
+  const [showIdeas, setShowIdeas] = useState(initialTab === "ideas")
 
   useEffect(() => {
     const checkPuter = setInterval(async () => {

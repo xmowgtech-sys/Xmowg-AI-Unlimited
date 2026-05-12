@@ -73,47 +73,46 @@ interface AIModel {
   description?: string
 }
 
-// Organized models by category
+// Organized models by category - using free Puter.js models
 const MODELS: Record<ModelCategory, AIModel[]> = {
   fast: [
-    { id: "x-ai/grok-4-1-fast", name: "Grok 4.1 Fast", provider: "xAI", category: "fast", description: "Ultra-fast responses" },
-    { id: "openai/gpt-5-mini", name: "GPT-5 Mini", provider: "OpenAI", category: "fast", description: "Quick & efficient" },
-    { id: "google/gemini-3-flash-preview", name: "Gemini 3 Flash", provider: "Google", category: "fast", description: "Lightning fast" },
-    { id: "x-ai/grok-4-fast", name: "Grok 4 Fast", provider: "xAI", category: "fast", description: "Fast reasoning" },
+    { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI", category: "fast", description: "Fast & free" },
+    { id: "claude-3-5-haiku-latest", name: "Claude 3.5 Haiku", provider: "Anthropic", category: "fast", description: "Quick responses" },
+    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", provider: "Google", category: "fast", description: "Lightning fast" },
+    { id: "llama-3.3-70b", name: "Llama 3.3 70B", provider: "Meta", category: "fast", description: "Open source fast" },
   ],
   thinking: [
-    { id: "openai/gpt-5.2-pro", name: "GPT-5.2 Pro", provider: "OpenAI", category: "thinking", description: "Deep reasoning" },
-    { id: "google/gemini-3-pro-preview", name: "Gemini 3 Pro", provider: "Google", category: "thinking", description: "Advanced thinking" },
-    { id: "qwen/qwen3-max-thinking", name: "Qwen3 Max Thinking", provider: "Qwen", category: "thinking", description: "Extended reasoning" },
-    { id: "anthropic/claude-sonnet-4-6", name: "Claude Sonnet 4.6", provider: "Anthropic", category: "thinking", description: "Balanced reasoning" },
+    { id: "gpt-4o", name: "GPT-4o", provider: "OpenAI", category: "thinking", description: "Deep reasoning" },
+    { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "Anthropic", category: "thinking", description: "Balanced thinking" },
+    { id: "gemini-2.5-pro-preview-06-05", name: "Gemini 2.5 Pro", provider: "Google", category: "thinking", description: "Advanced thinking" },
+    { id: "deepseek-chat", name: "DeepSeek Chat", provider: "DeepSeek", category: "thinking", description: "Deep analysis" },
   ],
   pro: [
-    { id: "x-ai/grok-4.3", name: "Grok 4.3", provider: "xAI", category: "pro", description: "Latest & most capable" },
-    { id: "x-ai/grok-4.20-multi-agent", name: "Grok Multi-Agent", provider: "xAI", category: "pro", description: "Multi-agent system" },
-    { id: "anthropic/claude-opus-4-6", name: "Claude Opus 4.6", provider: "Anthropic", category: "pro", description: "Most intelligent" },
-    { id: "openai/gpt-5.2", name: "GPT-5.2", provider: "OpenAI", category: "pro", description: "Flagship model" },
+    { id: "claude-opus-4-20250514", name: "Claude Opus 4", provider: "Anthropic", category: "pro", description: "Most intelligent" },
+    { id: "gpt-4.1", name: "GPT-4.1", provider: "OpenAI", category: "pro", description: "Latest GPT" },
+    { id: "o3", name: "o3", provider: "OpenAI", category: "pro", description: "Best reasoning" },
+    { id: "gemini-2.5-flash-preview-05-20", name: "Gemini 2.5 Flash", provider: "Google", category: "pro", description: "Pro Flash" },
   ],
   research: [
-    { id: "x-ai/grok-4", name: "Grok 4 Research", provider: "xAI", category: "research", description: "Deep research mode" },
-    { id: "deepseek/deepseek-v3.2", name: "DeepSeek V3.2", provider: "DeepSeek", category: "research", description: "Research focused" },
+    { id: "o4-mini", name: "o4 Mini", provider: "OpenAI", category: "research", description: "Reasoning model" },
+    { id: "deepseek-reasoner", name: "DeepSeek R1", provider: "DeepSeek", category: "research", description: "Research focused" },
+    { id: "qwq-32b", name: "QwQ 32B", provider: "Qwen", category: "research", description: "Deep reasoning" },
   ],
   image: [
-    { id: "grok-2-image", name: "Grok 2 Image", provider: "xAI", category: "image", description: "Latest xAI image gen" },
-    { id: "openai/gpt-image-1.5", name: "GPT Image 1.5", provider: "OpenAI", category: "image", description: "Best quality" },
-    { id: "openai/gpt-image-1-mini", name: "GPT Image Mini", provider: "OpenAI", category: "image", description: "Fast generation" },
-    { id: "google/imagen-4.0-ultra", name: "Imagen 4 Ultra", provider: "Google", category: "image", description: "Ultra realistic" },
-    { id: "black-forest-labs/flux.2-klein-9b", name: "FLUX.2 Klein 9B", provider: "Black Forest", category: "image", description: "Artistic style" },
+    { id: "dall-e-3", name: "DALL-E 3", provider: "OpenAI", category: "image", description: "Best quality" },
+    { id: "flux-schnell", name: "FLUX Schnell", provider: "Black Forest", category: "image", description: "Fast & artistic" },
+    { id: "flux-pro", name: "FLUX Pro", provider: "Black Forest", category: "image", description: "Professional" },
+    { id: "stability-core", name: "Stability Core", provider: "Stability", category: "image", description: "Stable Diffusion" },
   ],
   code: [
-    { id: "x-ai/grok-code-fast-1", name: "Grok Code Fast", provider: "xAI", category: "code", description: "Fast coding" },
-    { id: "openai/gpt-5.2-codex", name: "GPT-5.2 Codex", provider: "OpenAI", category: "code", description: "Best for coding" },
-    { id: "anthropic/claude-opus-4-6", name: "Claude Opus 4.6", provider: "Anthropic", category: "code", description: "Excellent coder" },
-    { id: "mistralai/devstral-2512", name: "Devstral 2", provider: "Mistral", category: "code", description: "Open source" },
+    { id: "gpt-4o", name: "GPT-4o Code", provider: "OpenAI", category: "code", description: "Best for coding" },
+    { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "Anthropic", category: "code", description: "Excellent coder" },
+    { id: "deepseek-chat", name: "DeepSeek Coder", provider: "DeepSeek", category: "code", description: "Coding specialist" },
+    { id: "codestral-latest", name: "Codestral", provider: "Mistral", category: "code", description: "Code focused" },
   ],
   video: [
-    { id: "sora-2", name: "Sora 2", provider: "OpenAI", category: "video", description: "Best quality" },
-    { id: "sora-2-pro", name: "Sora 2 Pro", provider: "OpenAI", category: "video", description: "Professional grade" },
     { id: "veo-3.0-generate-001", name: "Veo 3.0", provider: "Google", category: "video", description: "Google video AI" },
+    { id: "veo-2.0-generate-001", name: "Veo 2.0", provider: "Google", category: "video", description: "Stable video gen" },
   ],
 }
 
@@ -558,7 +557,7 @@ export function GrokChat() {
     }
   }
 
-  const toggleVoiceInput = () => {
+  const toggleVoiceInput = async () => {
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
       alert("Speech recognition not supported in this browser")
       return
@@ -572,17 +571,31 @@ export function GrokChat() {
       return
     }
 
+    // Request microphone permission first
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch (error) {
+      alert("Microphone permission denied. Please allow microphone access to use voice input.")
+      return
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     const recognition = new SpeechRecognition()
     recognition.continuous = false
     recognition.interimResults = false
+    recognition.lang = "en-US"
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = event.results[0][0].transcript
-      handleSendMessage(transcript)
+      if (transcript.trim()) {
+        handleSendMessage(transcript)
+      }
     }
 
-    recognition.onerror = () => setIsListening(false)
+    recognition.onerror = (event) => {
+      console.error("Speech recognition error:", event.error)
+      setIsListening(false)
+    }
     recognition.onend = () => setIsListening(false)
 
     recognitionRef.current = recognition
@@ -590,16 +603,26 @@ export function GrokChat() {
     recognition.start()
   }
 
-  const speakText = async (text: string) => {
-    if (!isTTSEnabled && selectedMode !== "voice") return
+  const speakText = async (text: string, force: boolean = false) => {
+    if (!force && !isTTSEnabled && selectedMode !== "voice") return
+    if (!text.trim()) return
 
     // Stop any currently playing audio first
     stopAllAudio()
 
+    // Clean text for speech (remove markdown)
+    const cleanText = text
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/\*(.*?)\*/g, "$1")
+      .replace(/`(.*?)`/g, "$1")
+      .replace(/```[\s\S]*?```/g, "code block")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .trim()
+
     try {
       setIsPlayingAudio(true)
-      // Use OpenAI TTS for more natural voice
-      const audio = await window.puter.ai.txt2speech(text, {
+      // Use Puter TTS with selected voice
+      const audio = await window.puter.ai.txt2speech(cleanText, {
         voice: selectedVoice.id,
         output_format: "mp3"
       })
@@ -611,11 +634,35 @@ export function GrokChat() {
       audio.onerror = () => {
         setIsPlayingAudio(false)
         currentAudioRef.current = null
+        // Fallback to browser TTS
+        fallbackTTS(cleanText)
       }
       audio.play()
     } catch {
       // Fallback to browser TTS
-      setIsPlayingAudio(false)
+      fallbackTTS(cleanText)
+    }
+  }
+
+  const fallbackTTS = (text: string) => {
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 1
+    utterance.pitch = 1
+    utterance.onend = () => setIsPlayingAudio(false)
+    utterance.onerror = () => setIsPlayingAudio(false)
+    setIsPlayingAudio(true)
+    speechSynthesis.speak(utterance)
+  }
+
+  const speakLastAIMessage = () => {
+    // Find the last assistant message
+    const lastAIMessage = [...messages].reverse().find(m => m.role === "assistant" && m.type !== "image" && m.type !== "video")
+    if (lastAIMessage) {
+      if (isPlayingAudio) {
+        stopAllAudio()
+      } else {
+        speakText(lastAIMessage.content, true)
+      }
     }
   }
 
@@ -656,7 +703,15 @@ export function GrokChat() {
     setPreviewUrls([])
   }
 
-  const startVoiceChat = () => {
+  const startVoiceChat = async () => {
+    // Request microphone permission first
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch (error) {
+      alert("Microphone permission denied. Please allow microphone access to use voice chat.")
+      return
+    }
+    
     setIsVoiceChatActive(true)
     setIsTTSEnabled(true)
     toggleVoiceInput()
@@ -784,7 +839,7 @@ export function GrokChat() {
         const generatingMessage: Message = {
           id: `msg_gen_${Date.now()}`,
           role: "assistant",
-          content: "Generating your video... This may take a few minutes.",
+          content: "Generating your video... This may take a few minutes. Video generation uses your Puter credits.",
           timestamp: Date.now(),
           type: "text",
           isGenerating: true,
@@ -793,7 +848,8 @@ export function GrokChat() {
 
         const videoElement = await window.puter.ai.txt2vid(content, {
           model: selectedModel.id,
-          seconds: 8,
+          seconds: 6,
+          size: "1280x720"
         })
 
         const videoUrl = videoElement?.src || ""
@@ -842,12 +898,22 @@ export function GrokChat() {
           setChatHistory(updatedHistory.sort((a, b) => b.timestamp - a.timestamp))
           await saveChatHistory(updatedHistory, selectedMode)
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Video generation error:", error)
+        // Check for Puter error object format: { code: 'insufficient_funds', error: '...', message: '...' }
+        const errorObj = error as { code?: string; message?: string; error?: string }
+        const errorCode = errorObj?.code || ""
+        const errorText = errorObj?.message || errorObj?.error || (error instanceof Error ? error.message : String(error))
+        const isBalanceError = errorCode === "insufficient_funds" || 
+          errorText.toLowerCase().includes("insufficient") || 
+          errorText.toLowerCase().includes("funds") || 
+          errorText.toLowerCase().includes("balance")
         const errorMessage: Message = {
           id: `msg_${Date.now()}`,
           role: "assistant",
-          content: "Failed to generate video. Please try a different prompt or try again later.",
+          content: isBalanceError 
+            ? "**Insufficient Puter Credits**: Video generation requires Puter credits. Your Puter account needs more credits to generate videos. Please visit [puter.com](https://puter.com) to add credits or upgrade your account." 
+            : `Failed to generate video: ${errorText}. Please try a different prompt or try again later.`,
           timestamp: Date.now(),
           type: "text",
         }
@@ -920,12 +986,22 @@ export function GrokChat() {
           setChatHistory(updatedHistory.sort((a, b) => b.timestamp - a.timestamp))
           await saveChatHistory(updatedHistory, selectedMode)
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Image generation error:", error)
+        // Check for Puter error object format: { code: 'insufficient_funds', error: '...', message: '...' }
+        const errorObj = error as { code?: string; message?: string; error?: string }
+        const errorCode = errorObj?.code || ""
+        const errorText = errorObj?.message || errorObj?.error || (error instanceof Error ? error.message : String(error))
+        const isBalanceError = errorCode === "insufficient_funds" || 
+          errorText.toLowerCase().includes("insufficient") || 
+          errorText.toLowerCase().includes("funds") || 
+          errorText.toLowerCase().includes("balance")
         const errorMessage: Message = {
           id: `msg_${Date.now()}`,
           role: "assistant",
-          content: "Failed to generate image. Please try a different prompt or model.",
+          content: isBalanceError 
+            ? "**Insufficient Puter Credits**: Image generation requires Puter credits. Your Puter account needs more credits. Please visit [puter.com](https://puter.com) to add credits or upgrade your account." 
+            : `Failed to generate image: ${errorText}. Please try a different prompt or model.`,
           timestamp: Date.now(),
           type: "text",
         }
@@ -1148,16 +1224,16 @@ export function GrokChat() {
             </button>
 
             <button
-              onClick={toggleTTS}
+              onClick={speakLastAIMessage}
               className={cn(
                 "p-2 rounded-md transition-colors",
-                isTTSEnabled
-                  ? "bg-primary text-primary-foreground"
+                isPlayingAudio
+                  ? "bg-primary text-primary-foreground animate-pulse"
                   : "hover:bg-secondary text-muted-foreground hover:text-foreground"
               )}
-              title={isTTSEnabled ? "Stop & disable TTS" : "Enable text-to-speech"}
+              title={isPlayingAudio ? "Stop speaking" : "Read last AI response"}
             >
-              {isTTSEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+              {isPlayingAudio ? <Volume2 size={18} /> : <VolumeX size={18} />}
             </button>
 
             <button

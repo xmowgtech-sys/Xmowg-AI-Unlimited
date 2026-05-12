@@ -12,7 +12,9 @@ import {
   Mic, 
   GalleryHorizontalEnd,
   Video,
-  FolderOpen
+  FolderOpen,
+  Lightbulb,
+  Sparkles
 } from "lucide-react"
 import Link from "next/link"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -103,18 +105,18 @@ export function ChatSidebar({
         {/* Mode Icons Row */}
         <div className={cn(
           "p-3 border-b border-border",
-          isOpen ? "flex items-center gap-2" : "flex flex-col items-center gap-2"
+          isOpen ? "grid grid-cols-6 gap-1.5" : "flex flex-col items-center gap-2"
         )}>
           {/* New Chat Button */}
           <button
             onClick={onNewChat}
             className={cn(
-              "flex items-center justify-center p-2 rounded-lg border border-border hover:bg-secondary hover:border-primary/50 transition-colors text-foreground",
+              "flex items-center justify-center p-2.5 rounded-lg border border-border hover:bg-secondary hover:border-primary/50 transition-colors text-foreground",
               !isOpen && "w-full"
             )}
             title="New Chat"
           >
-            <Plus size={18} />
+            <Plus size={16} />
           </button>
 
           {/* Mode Icons */}
@@ -123,7 +125,7 @@ export function ChatSidebar({
               key={mode.id}
               onClick={() => onModeChange(mode.id)}
               className={cn(
-                "flex items-center justify-center p-2 rounded-lg transition-all",
+                "flex items-center justify-center p-2.5 rounded-lg transition-all",
                 selectedMode === mode.id
                   ? "bg-gradient-to-r from-primary to-purple-500 text-primary-foreground shadow-md"
                   : "hover:bg-secondary text-muted-foreground hover:text-foreground",
@@ -131,14 +133,14 @@ export function ChatSidebar({
               )}
               title={mode.name}
             >
-              <mode.icon size={18} />
+              <mode.icon size={16} />
             </button>
           ))}
         </div>
 
-        {/* Gallery Links */}
+        {/* Gallery & Ideas Links */}
         <div className={cn(
-          "p-3 border-b border-border space-y-2",
+          "p-3 border-b border-border space-y-1.5",
           isOpen ? "" : "flex flex-col items-center"
         )}>
           <Link
@@ -149,7 +151,7 @@ export function ChatSidebar({
             )}
             title="Image Gallery"
           >
-            <GalleryHorizontalEnd size={18} />
+            <GalleryHorizontalEnd size={16} />
             {isOpen && <span className="text-sm">Image Gallery</span>}
           </Link>
           <Link
@@ -160,7 +162,7 @@ export function ChatSidebar({
             )}
             title="Video Gallery"
           >
-            <Video size={18} />
+            <Video size={16} />
             {isOpen && <span className="text-sm">Video Gallery</span>}
           </Link>
           <Link
@@ -171,8 +173,19 @@ export function ChatSidebar({
             )}
             title="Folders"
           >
-            <FolderOpen size={18} />
+            <FolderOpen size={16} />
             {isOpen && <span className="text-sm">Folders</span>}
+          </Link>
+          <Link
+            href="/gallery?tab=ideas"
+            className={cn(
+              "flex items-center gap-2 p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground w-full",
+              !isOpen && "justify-center"
+            )}
+            title="Generation Ideas"
+          >
+            <Lightbulb size={16} />
+            {isOpen && <span className="text-sm">Generation Ideas</span>}
           </Link>
         </div>
 
