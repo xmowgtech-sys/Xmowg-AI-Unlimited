@@ -47,6 +47,8 @@ interface Message {
   imageUrl?: string
   videoUrl?: string
   isGenerating?: boolean
+  thinking?: string // AI's thought process
+  thinkingComplete?: boolean
 }
 
 interface ChatHistory {
@@ -60,8 +62,13 @@ interface ChatHistory {
 interface UserProfile {
   traits: string[]
   preferences: string[]
+  facts: string[] // Specific facts about the user (name, location, favorites, etc.)
+  conversationStyle: string // How the user prefers to be communicated with
   lastUpdated: number
 }
+
+// Storage key for explicit memories (things user asked to remember)
+const MEMORIES_KEY = "xmowg_user_memories"
 
 type ModelCategory = "fast" | "thinking" | "pro" | "research" | "image" | "code" | "video"
 
@@ -177,14 +184,17 @@ const MODES = [
   { id: "voice", name: "Voice", icon: Mic },
 ] as const
 
-// Natural sounding voices - using OpenAI/ElevenLabs style voices
+// Natural sounding voices - using OpenAI provider via Puter.js
 const VOICE_OPTIONS = [
-  { id: "alloy", name: "Alloy", description: "Natural & balanced" },
-  { id: "echo", name: "Echo", description: "Warm & conversational" },
-  { id: "fable", name: "Fable", description: "Expressive & dynamic" },
-  { id: "onyx", name: "Onyx", description: "Deep & authoritative" },
-  { id: "nova", name: "Nova", description: "Friendly & upbeat" },
-  { id: "shimmer", name: "Shimmer", description: "Clear & articulate" },
+  { id: "alloy", name: "Alloy", description: "Natural & balanced", provider: "openai" },
+  { id: "echo", name: "Echo", description: "Warm & conversational", provider: "openai" },
+  { id: "fable", name: "Fable", description: "Expressive & dynamic", provider: "openai" },
+  { id: "onyx", name: "Onyx", description: "Deep & authoritative", provider: "openai" },
+  { id: "nova", name: "Nova", description: "Friendly & upbeat", provider: "openai" },
+  { id: "shimmer", name: "Shimmer", description: "Clear & articulate", provider: "openai" },
+  { id: "ash", name: "Ash", description: "Calm & professional", provider: "openai" },
+  { id: "coral", name: "Coral", description: "Bright & energetic", provider: "openai" },
+  { id: "sage", name: "Sage", description: "Wise & thoughtful", provider: "openai" },
 ]
 
 type Mode = typeof MODES[number]["id"]
@@ -290,10 +300,14 @@ export function GrokChat() {
   const [isListening, setIsListening] = useState(false)
   const [isTTSEnabled, setIsTTSEnabled] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [userMemories, setUserMemories] = useState<string[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [customInstructions, setCustomInstructions] = useState("")
   const [instructionsInput, setInstructionsInput] = useState("")
   const [showIdeas, setShowIdeas] = useState(false)
+  const [newMemoryInput, setNewMemoryInput] = useState("")
+  const [currentThinking, setCurrentThinking] = useState<string>("")
+  const [showThinking, setShowThinking] = useState(true) // Toggle to show/hide thinking
 
   // Voice chat state
   const [selectedVoice, setSelectedVoice] = useState(VOICE_OPTIONS[0])
@@ -374,6 +388,7 @@ export function GrokChat() {
               await loadChatHistory("chat")
               await loadUserProfile()
               await loadCustomInstructions()
+              await loadUserMemories()
             }
           } catch (error) {
             console.error("Error checking auth:", error)
@@ -477,6 +492,37 @@ export function GrokChat() {
     }
   }
 
+  const loadUserMemories = async () => {
+    try {
+      const data = await window.puter.kv.get(MEMORIES_KEY)
+      if (data) {
+        setUserMemories(JSON.parse(data))
+      }
+    } catch (error) {
+      console.error("Error loading memories:", error)
+    }
+  }
+
+  const saveUserMemory = async (memory: string) => {
+    try {
+      const updated = [...userMemories, memory].slice(-50) // Keep last 50 memories
+      await window.puter.kv.set(MEMORIES_KEY, JSON.stringify(updated))
+      setUserMemories(updated)
+    } catch (error) {
+      console.error("Error saving memory:", error)
+    }
+  }
+
+  const deleteUserMemory = async (index: number) => {
+    try {
+      const updated = userMemories.filter((_, i) => i !== index)
+      await window.puter.kv.set(MEMORIES_KEY, JSON.stringify(updated))
+      setUserMemories(updated)
+    } catch (error) {
+      console.error("Error deleting memory:", error)
+    }
+  }
+
   const saveCustomInstructions = async () => {
     try {
       await window.puter.kv.set(INSTRUCTIONS_KEY, instructionsInput)
@@ -497,7 +543,31 @@ export function GrokChat() {
 
   const saveChatHistory = async (history: ChatHistory[], mode: Mode) => {
     try {
-      await window.puter.kv.set(STORAGE_KEYS[mode], JSON.stringify(history))
+      // Limit chat history and message content to stay under KV storage limits
+      const limitedHistory = history.slice(0, 50).map(chat => ({
+        ...chat,
+        messages: chat.messages.slice(-20).map(msg => ({
+          ...msg,
+          // Don't store large image/video URLs in chat history
+          imageUrl: undefined,
+          videoUrl: undefined,
+          content: msg.content.length > 5000 ? msg.content.substring(0, 5000) + "..." : msg.content,
+          thinking: msg.thinking ? msg.thinking.substring(0, 1000) : undefined,
+        }))
+      }))
+      
+      try {
+        await window.puter.kv.set(STORAGE_KEYS[mode], JSON.stringify(limitedHistory))
+      } catch (kvError: unknown) {
+        const kvErr = kvError as { code?: string }
+        if (kvErr?.code === "value_too_large") {
+          // Further reduce if still too large
+          const reduced = limitedHistory.slice(0, 20)
+          await window.puter.kv.set(STORAGE_KEYS[mode], JSON.stringify(reduced))
+        } else {
+          throw kvError
+        }
+      }
     } catch (error) {
       console.error("Error saving chat history:", error)
     }
@@ -509,36 +579,34 @@ export function GrokChat() {
       const existing = await window.puter.kv.get(key)
       const items: (GalleryImage | GalleryVideo)[] = existing ? JSON.parse(existing) : []
       
-      // Convert blob URL to data URL for persistent storage
-      let persistentUrl = url
-      if (url.startsWith("blob:")) {
-        try {
-          const response = await fetch(url)
-          const blob = await response.blob()
-          persistentUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onloadend = () => resolve(reader.result as string)
-            reader.onerror = reject
-            reader.readAsDataURL(blob)
-          })
-        } catch (conversionError) {
-          console.error("Error converting blob to data URL:", conversionError)
-          // Still save with blob URL as fallback
-        }
-      }
-      
+      // For Puter KV storage, we have a ~400KB limit
+      // Store the URL directly - blob URLs won't persist but that's okay
+      // The gallery will show items that have valid URLs
       const newItem = {
         id: `${type}_${Date.now()}`,
         prompt,
-        url: persistentUrl,
+        url: url, // Keep the original URL
         timestamp: Date.now(),
         model,
       }
       
-      // Limit storage size - fewer items for videos due to larger size
-      const maxItems = type === "image" ? 50 : 20
+      // Limit storage size to stay under KV limits
+      const maxItems = type === "image" ? 30 : 10
       const updated = [newItem, ...items].slice(0, maxItems)
-      await window.puter.kv.set(key, JSON.stringify(updated))
+      
+      // Try to save, if it fails due to size, reduce items
+      try {
+        await window.puter.kv.set(key, JSON.stringify(updated))
+      } catch (kvError: unknown) {
+        const kvErr = kvError as { code?: string }
+        if (kvErr?.code === "value_too_large") {
+          // Reduce to fewer items and try again
+          const reduced = updated.slice(0, Math.floor(maxItems / 2))
+          await window.puter.kv.set(key, JSON.stringify(reduced))
+        } else {
+          throw kvError
+        }
+      }
     } catch (error) {
       console.error(`Error saving to ${type} gallery:`, error)
     }
@@ -610,6 +678,7 @@ export function GrokChat() {
       await loadChatHistory(selectedMode)
       await loadUserProfile()
       await loadCustomInstructions()
+      await loadUserMemories()
       setShowAuthPrompt(false)
     } catch (error) {
       console.error("Error signing in:", error)
@@ -656,11 +725,9 @@ export function GrokChat() {
   }
 
   const toggleVoiceInput = async () => {
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      alert("Speech recognition not supported in this browser")
-      return
-    }
-
+    // Check for browser speech recognition support
+    const hasBrowserSTT = ("webkitSpeechRecognition" in window) || ("SpeechRecognition" in window)
+    
     if (isListening) {
       if (recognitionRef.current) {
         recognitionRef.current.stop()
@@ -672,33 +739,74 @@ export function GrokChat() {
     // Request microphone permission first
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch (error) {
+    } catch {
       alert("Microphone permission denied. Please allow microphone access to use voice input.")
       return
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-    recognition.continuous = false
-    recognition.interimResults = false
-    recognition.lang = "en-US"
+    // Use browser's SpeechRecognition for real-time voice input
+    if (hasBrowserSTT) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+      const recognition = new SpeechRecognition()
+      recognition.continuous = selectedMode === "voice" // Continuous for voice mode
+      recognition.interimResults = true
+      recognition.lang = "en-US"
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript
-      if (transcript.trim()) {
-        handleSendMessage(transcript)
+      let finalTranscript = ""
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let interimTranscript = ""
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript
+          } else {
+            interimTranscript += transcript
+          }
+        }
+        
+        // Show interim results in input
+        if (interimTranscript && selectedMode !== "voice") {
+          setInputValue(prev => prev ? prev : interimTranscript)
+        }
+        
+        // Send final result
+        if (finalTranscript.trim() && selectedMode === "voice") {
+          handleSendMessage(finalTranscript.trim())
+          finalTranscript = ""
+        }
       }
-    }
 
-    recognition.onerror = (event) => {
-      console.error("Speech recognition error:", event.error)
-      setIsListening(false)
-    }
-    recognition.onend = () => setIsListening(false)
+      recognition.onerror = (event) => {
+        console.error("Speech recognition error:", event.error)
+        if (event.error !== "no-speech") {
+          setIsListening(false)
+        }
+      }
+      
+      recognition.onend = () => {
+        // For non-voice mode, send final transcript
+        if (finalTranscript.trim() && selectedMode !== "voice") {
+          handleSendMessage(finalTranscript.trim())
+        }
+        setIsListening(false)
+        
+        // In voice chat mode, restart listening after a pause
+        if (isVoiceChatActive && !isPlayingAudio) {
+          setTimeout(() => {
+            if (isVoiceChatActive) {
+              toggleVoiceInput()
+            }
+          }, 1000)
+        }
+      }
 
-    recognitionRef.current = recognition
-    setIsListening(true)
-    recognition.start()
+      recognitionRef.current = recognition
+      setIsListening(true)
+      recognition.start()
+    } else {
+      alert("Speech recognition not supported in this browser. Please use Chrome or Edge.")
+    }
   }
 
   const speakText = async (text: string, force: boolean = false) => {
@@ -717,28 +825,41 @@ export function GrokChat() {
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
       .trim()
 
+    // Limit text length for TTS (max 3000 chars per Puter docs)
+    const truncatedText = cleanText.length > 2500 ? cleanText.substring(0, 2500) + "..." : cleanText
+
     try {
       setIsPlayingAudio(true)
-      // Use Puter TTS with selected voice
-      const audio = await window.puter.ai.txt2speech(cleanText, {
+      // Use Puter TTS with OpenAI provider and selected voice
+      const audio = await window.puter.ai.txt2speech(truncatedText, {
+        provider: "openai",
+        model: "gpt-4o-mini-tts",
         voice: selectedVoice.id,
-        output_format: "mp3"
+        response_format: "mp3",
+        instructions: "Speak naturally and conversationally, with appropriate emotion and pacing."
       })
       currentAudioRef.current = audio
       audio.onended = () => {
         setIsPlayingAudio(false)
         currentAudioRef.current = null
+        // If in voice chat mode, start listening again after response
+        if (isVoiceChatActive && selectedMode === "voice") {
+          setTimeout(() => {
+            toggleVoiceInput()
+          }, 500)
+        }
       }
       audio.onerror = () => {
         setIsPlayingAudio(false)
         currentAudioRef.current = null
         // Fallback to browser TTS
-        fallbackTTS(cleanText)
+        fallbackTTS(truncatedText)
       }
       audio.play()
-    } catch {
+    } catch (error) {
+      console.error("TTS error:", error)
       // Fallback to browser TTS
-      fallbackTTS(cleanText)
+      fallbackTTS(truncatedText)
     }
   }
 
@@ -868,7 +989,9 @@ export function GrokChat() {
   const clearMemory = async () => {
     try {
       await window.puter.kv.del(PROFILE_KEY)
+      await window.puter.kv.del(MEMORIES_KEY)
       setUserProfile(null)
+      setUserMemories([])
     } catch (error) {
       console.error("Error clearing memory:", error)
     }
@@ -1153,7 +1276,32 @@ Image generation uses your Puter account credits. Sign in to Puter and ensure yo
 
       // Add user profile context
       if (userProfile && userProfile.traits.length > 0) {
-        systemPrompt += `\n\nUser Context: This user has shown interest in: ${userProfile.traits.join(", ")}. Tailor your responses accordingly.`
+        systemPrompt += `\n\nUser Interests & Traits: ${userProfile.traits.join(", ")}. Tailor your responses accordingly.`
+      }
+
+      // Add explicit user memories
+      if (userMemories.length > 0) {
+        systemPrompt += `\n\n**Important User Information to Remember:**\n${userMemories.map((m, i) => `${i + 1}. ${m}`).join("\n")}\n\nUse this information naturally in your responses when relevant.`
+      }
+
+      // Add thinking mode for research category or when explicitly enabled
+      const isResearchMode = selectedCategory === "research"
+      if (isResearchMode && showThinking) {
+        systemPrompt += `\n\n**Thinking Mode Enabled:**
+When answering, first show your thought process wrapped in <thinking>...</thinking> tags.
+Inside these tags, explain:
+- What the user is asking for
+- Key considerations and approaches
+- Your reasoning process
+Then provide your final answer after the thinking section.
+Example format:
+<thinking>
+Let me analyze this question...
+The key points are...
+I should consider...
+</thinking>
+
+[Your actual response here]`
       }
 
       const conversationHistory = [
@@ -1175,7 +1323,17 @@ Image generation uses your Puter account credits. Sign in to Puter and ensure yo
           }
           if (chunk.text) {
             fullResponse += chunk.text
-            setStreamingMessage(fullResponse)
+            
+            // Check for thinking tags in streaming content
+            const thinkingMatch = fullResponse.match(/<thinking>([\s\S]*?)(<\/thinking>)?/i)
+            if (thinkingMatch) {
+              setCurrentThinking(thinkingMatch[1])
+              // Only show content after thinking tags
+              const afterThinking = fullResponse.replace(/<thinking>[\s\S]*?(<\/thinking>)?/i, "").trim()
+              setStreamingMessage(afterThinking)
+            } else {
+              setStreamingMessage(fullResponse)
+            }
           }
         }
       } else {
@@ -1184,16 +1342,28 @@ Image generation uses your Puter account credits. Sign in to Puter and ensure yo
       }
 
       if (!abortControllerRef.current?.signal.aborted) {
+        // Parse thinking tags from response
+        let thinking = ""
+        let actualContent = fullResponse
+        const thinkingMatch = fullResponse.match(/<thinking>([\s\S]*?)<\/thinking>/i)
+        if (thinkingMatch) {
+          thinking = thinkingMatch[1].trim()
+          actualContent = fullResponse.replace(/<thinking>[\s\S]*?<\/thinking>/i, "").trim()
+        }
+
         const assistantMessage: Message = {
           id: `msg_${Date.now()}`,
           role: "assistant",
-          content: fullResponse,
+          content: actualContent,
           timestamp: Date.now(),
+          thinking: thinking || undefined,
+          thinkingComplete: true,
         }
 
         const updatedMessages = [...newMessages, assistantMessage]
         setMessages(updatedMessages)
         setStreamingMessage("")
+        setCurrentThinking("")
 
         if (isTTSEnabled && fullResponse) {
           speakText(fullResponse)
@@ -1363,6 +1533,22 @@ Image generation uses your Puter account credits. Sign in to Puter and ensure yo
               {isPlayingAudio ? <Volume2 size={18} /> : <VolumeX size={18} />}
             </button>
 
+            {/* Thinking mode toggle - only show for research models */}
+            {selectedCategory === "research" && (
+              <button
+                onClick={() => setShowThinking(!showThinking)}
+                className={cn(
+                  "p-2 rounded-md transition-colors",
+                  showThinking
+                    ? "bg-primary/20 text-primary"
+                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                )}
+                title={showThinking ? "Hide AI thinking" : "Show AI thinking"}
+              >
+                <Brain size={18} />
+              </button>
+            )}
+
             <button
               onClick={shareChat}
               className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
@@ -1495,13 +1681,15 @@ Image generation uses your Puter account credits. Sign in to Puter and ensure yo
               {messages.map((message) => (
                 <ChatMessage key={message.id} message={message} />
               ))}
-              {streamingMessage && (
+              {(streamingMessage || currentThinking) && (
                 <ChatMessage
                   message={{
                     id: "streaming",
                     role: "assistant",
-                    content: streamingMessage,
+                    content: streamingMessage || "...",
                     timestamp: Date.now(),
+                    thinking: currentThinking || undefined,
+                    thinkingComplete: false,
                   }}
                   isStreaming
                 />
@@ -1841,25 +2029,83 @@ Image generation uses your Puter account credits. Sign in to Puter and ensure yo
                 {/* Memory Section */}
                 <div>
                   <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-                    <User size={14} />
-                    User Memory
+                    <Brain size={14} />
+                    Memory & Personalization
                   </h3>
-                  {userProfile ? (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        Learned traits: {userProfile.traits.join(", ") || "None yet"}
-                      </p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Xmowg will remember these things about you across all conversations.
+                  </p>
+                  
+                  {/* Add new memory */}
+                  {isSignedIn && (
+                    <div className="flex gap-2 mb-3">
+                      <input
+                        type="text"
+                        value={newMemoryInput}
+                        onChange={(e) => setNewMemoryInput(e.target.value)}
+                        placeholder="e.g., My name is Alex, I love Python..."
+                        className="flex-1 px-3 py-2 text-sm bg-input border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newMemoryInput.trim()) {
+                            saveUserMemory(newMemoryInput.trim())
+                            setNewMemoryInput("")
+                          }
+                        }}
+                      />
                       <button
-                        onClick={clearMemory}
-                        className="flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                        onClick={() => {
+                          if (newMemoryInput.trim()) {
+                            saveUserMemory(newMemoryInput.trim())
+                            setNewMemoryInput("")
+                          }
+                        }}
+                        className="px-3 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
                       >
-                        <Trash2 size={14} />
-                        Clear Memory
+                        Add
                       </button>
                     </div>
+                  )}
+
+                  {/* Explicit memories list */}
+                  {userMemories.length > 0 && (
+                    <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
+                      {userMemories.map((memory, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 bg-secondary/50 rounded-lg text-xs">
+                          <span className="truncate">{memory}</span>
+                          <button
+                            onClick={() => deleteUserMemory(i)}
+                            className="text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Learned traits */}
+                  {userProfile && userProfile.traits.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs text-muted-foreground mb-1">Learned from conversations:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {userProfile.traits.map((trait, i) => (
+                          <span key={i} className="px-2 py-1 bg-secondary text-xs rounded">{trait}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {isSignedIn ? (
+                    <button
+                      onClick={clearMemory}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={14} />
+                      Clear All Memory
+                    </button>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      {isSignedIn ? "Memory will build as you chat" : "Sign in to enable adaptive learning"}
+                      Sign in to enable memory and personalization
                     </p>
                   )}
                 </div>

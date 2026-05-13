@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { User, Zap, Copy, Check, Download, FileCode, Play } from "lucide-react"
+import { User, Zap, Copy, Check, Download, FileCode, Play, Brain, ChevronDown, ChevronRight } from "lucide-react"
 import { useState, useMemo, useRef } from "react"
 
 interface Message {
@@ -13,6 +13,8 @@ interface Message {
   imageUrl?: string
   videoUrl?: string
   isGenerating?: boolean
+  thinking?: string
+  thinkingComplete?: boolean
 }
 
 interface ChatMessageProps {
@@ -198,6 +200,34 @@ function FormattedText({ text }: { text: string }) {
   return <>{formatText(text)}</>
 }
 
+// Thinking process display
+function ThinkingDisplay({ thinking, isComplete }: { thinking: string; isComplete?: boolean }) {
+  const [expanded, setExpanded] = useState(true)
+  
+  if (!thinking) return null
+  
+  return (
+    <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+      >
+        <Brain size={14} className={isComplete ? "" : "animate-pulse"} />
+        <span>{isComplete ? "Thought process" : "Thinking..."}</span>
+        {expanded ? <ChevronDown size={14} className="ml-auto" /> : <ChevronRight size={14} className="ml-auto" />}
+      </button>
+      {expanded && (
+        <div className="px-3 py-2 text-xs text-muted-foreground border-t border-primary/10 bg-card/50">
+          <div className="whitespace-pre-wrap italic">{thinking}</div>
+          {!isComplete && (
+            <span className="inline-block w-1.5 h-3 ml-1 bg-primary/50 animate-pulse rounded-sm" />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Image generation animation
 function GeneratingAnimation({ type }: { type: "image" | "video" }) {
   return (
@@ -274,6 +304,11 @@ export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
 
     return (
       <div className="text-sm leading-relaxed text-foreground/90">
+        {/* Show thinking process if available */}
+        {message.thinking && (
+          <ThinkingDisplay thinking={message.thinking} isComplete={message.thinkingComplete} />
+        )}
+        
         {parts.map((part, i) => {
           const codeMatch = part.match(/__CODE_BLOCK_(\d+)__/)
           if (codeMatch) {
