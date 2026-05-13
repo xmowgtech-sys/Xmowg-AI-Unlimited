@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { 
   ArrowLeft, 
   Download, 
@@ -57,6 +57,10 @@ const IMAGE_IDEAS = [
   "Abstract fluid art with metallic gold and deep blue colors",
   "Ancient temple ruins reclaimed by nature with vines and moss",
   "Underwater city of merfolk with bioluminescent architecture",
+  "Steampunk airship flying through golden clouds at golden hour",
+  "Samurai warrior standing in a field of cherry blossoms",
+  "Northern lights dancing over a snowy mountain village",
+  "Art deco robot butler serving tea in a 1920s mansion",
 ]
 
 const VIDEO_IDEAS = [
@@ -68,10 +72,15 @@ const VIDEO_IDEAS = [
   "Northern lights dancing over a frozen tundra",
   "Clouds forming and moving across a mountain landscape",
   "Rain drops falling on a window with city lights in background",
+  "Majestic eagle soaring through mountain peaks at golden hour",
+  "Butterfly emerging from a cocoon in slow motion",
+  "Ocean waves crashing on rocks in cinematic slow motion",
+  "Snow falling gently on a quiet winter forest path",
 ]
 
 export default function GalleryPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const initialTab = searchParams.get("tab") as "image" | "video" | "folders" | "ideas" | null
   
   const [isPuterReady, setIsPuterReady] = useState(false)
@@ -380,16 +389,23 @@ export default function GalleryPage() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {(activeTab === "video" ? VIDEO_IDEAS : IMAGE_IDEAS).map((idea, i) => (
-                  <div
+                  <button
                     key={i}
-                    className="p-3 text-sm bg-secondary/50 rounded-lg text-muted-foreground"
+                    onClick={() => {
+                      // Store the idea and mode in sessionStorage to auto-send
+                      sessionStorage.setItem("autoGeneratePrompt", idea)
+                      sessionStorage.setItem("autoGenerateMode", activeTab === "video" ? "video" : "image")
+                      router.push("/")
+                    }}
+                    className="p-3 text-sm bg-secondary/50 rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors text-left group"
                   >
-                    {idea}
-                  </div>
+                    <span>{idea}</span>
+                    <span className="ml-2 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">Click to generate</span>
+                  </button>
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-3">
-                Go back to chat and use {activeTab === "video" ? "Video" : "Image"} mode to generate!
+                Click any idea to automatically generate it!
               </p>
             </div>
           )}

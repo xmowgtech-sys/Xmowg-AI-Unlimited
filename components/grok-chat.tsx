@@ -47,6 +47,8 @@ interface Message {
   imageUrl?: string
   videoUrl?: string
   isGenerating?: boolean
+  thinking?: string // AI's thought process
+  thinkingComplete?: boolean
 }
 
 interface ChatHistory {
@@ -60,8 +62,13 @@ interface ChatHistory {
 interface UserProfile {
   traits: string[]
   preferences: string[]
+  facts: string[] // Specific facts about the user (name, location, favorites, etc.)
+  conversationStyle: string // How the user prefers to be communicated with
   lastUpdated: number
 }
+
+// Storage key for explicit memories (things user asked to remember)
+const MEMORIES_KEY = "xmowg_user_memories"
 
 type ModelCategory = "fast" | "thinking" | "pro" | "research" | "image" | "code" | "video"
 
@@ -76,43 +83,86 @@ interface AIModel {
 // Organized models by category - using free Puter.js models
 const MODELS: Record<ModelCategory, AIModel[]> = {
   fast: [
-    { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI", category: "fast", description: "Fast & free" },
-    { id: "claude-3-5-haiku-latest", name: "Claude 3.5 Haiku", provider: "Anthropic", category: "fast", description: "Quick responses" },
-    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", provider: "Google", category: "fast", description: "Lightning fast" },
-    { id: "llama-3.3-70b", name: "Llama 3.3 70B", provider: "Meta", category: "fast", description: "Open source fast" },
+    { id: "gpt-5-nano", name: "GPT-5 Nano", provider: "OpenAI", category: "fast", description: "Fast & efficient" },
+    { id: "gpt-5.4-nano", name: "GPT-5.4 Nano", provider: "OpenAI", category: "fast", description: "Latest fast model" },
+    { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI", category: "fast", description: "Quick responses" },
+    { id: "claude-3-5-haiku-latest", name: "Claude 3.5 Haiku", provider: "Anthropic", category: "fast", description: "Lightning fast" },
+    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", provider: "Google", category: "fast", description: "Super fast" },
+    { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "Google", category: "fast", description: "Latest flash" },
+    { id: "gemini-3-flash-preview", name: "Gemini 3 Flash", provider: "Google", category: "fast", description: "Newest flash" },
+    { id: "x-ai/grok-4-1-fast", name: "Grok 4.1 Fast", provider: "xAI", category: "fast", description: "Fast Grok" },
+    { id: "llama-3.3-70b", name: "Llama 3.3 70B", provider: "Meta", category: "fast", description: "Open source" },
   ],
   thinking: [
     { id: "gpt-4o", name: "GPT-4o", provider: "OpenAI", category: "thinking", description: "Deep reasoning" },
-    { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "Anthropic", category: "thinking", description: "Balanced thinking" },
-    { id: "gemini-2.5-pro-preview-06-05", name: "Gemini 2.5 Pro", provider: "Google", category: "thinking", description: "Advanced thinking" },
+    { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", provider: "Anthropic", category: "thinking", description: "Balanced thinking" },
+    { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "Anthropic", category: "thinking", description: "Advanced Claude" },
+    { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "Google", category: "thinking", description: "Pro thinking" },
+    { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro", provider: "Google", category: "thinking", description: "Latest Pro" },
     { id: "deepseek-chat", name: "DeepSeek Chat", provider: "DeepSeek", category: "thinking", description: "Deep analysis" },
+    { id: "deepseek/deepseek-r1", name: "DeepSeek R1", provider: "DeepSeek", category: "thinking", description: "Deep reasoning" },
+    { id: "x-ai/grok-4.3", name: "Grok 4.3", provider: "xAI", category: "thinking", description: "Latest Grok" },
+    { id: "x-ai/grok-4", name: "Grok 4", provider: "xAI", category: "thinking", description: "Powerful Grok" },
   ],
   pro: [
     { id: "claude-opus-4-20250514", name: "Claude Opus 4", provider: "Anthropic", category: "pro", description: "Most intelligent" },
     { id: "gpt-4.1", name: "GPT-4.1", provider: "OpenAI", category: "pro", description: "Latest GPT" },
     { id: "o3", name: "o3", provider: "OpenAI", category: "pro", description: "Best reasoning" },
-    { id: "gemini-2.5-flash-preview-05-20", name: "Gemini 2.5 Flash", provider: "Google", category: "pro", description: "Pro Flash" },
+    { id: "gemini-3-pro-preview", name: "Gemini 3 Pro", provider: "Google", category: "pro", description: "Top tier" },
+    { id: "x-ai/grok-4.20", name: "Grok 4.20", provider: "xAI", category: "pro", description: "Premium Grok" },
+    { id: "x-ai/grok-4.20-multi-agent", name: "Grok Multi-Agent", provider: "xAI", category: "pro", description: "Multi-agent" },
   ],
   research: [
     { id: "o4-mini", name: "o4 Mini", provider: "OpenAI", category: "research", description: "Reasoning model" },
-    { id: "deepseek-reasoner", name: "DeepSeek R1", provider: "DeepSeek", category: "research", description: "Research focused" },
+    { id: "deepseek-reasoner", name: "DeepSeek Reasoner", provider: "DeepSeek", category: "research", description: "Research focused" },
     { id: "qwq-32b", name: "QwQ 32B", provider: "Qwen", category: "research", description: "Deep reasoning" },
+    { id: "x-ai/grok-3-beta", name: "Grok 3 Beta", provider: "xAI", category: "research", description: "Research Grok" },
   ],
   image: [
-    { id: "dall-e-3", name: "DALL-E 3", provider: "OpenAI", category: "image", description: "Best quality" },
-    { id: "flux-schnell", name: "FLUX Schnell", provider: "Black Forest", category: "image", description: "Fast & artistic" },
-    { id: "flux-pro", name: "FLUX Pro", provider: "Black Forest", category: "image", description: "Professional" },
-    { id: "stability-core", name: "Stability Core", provider: "Stability", category: "image", description: "Stable Diffusion" },
+    // OpenAI GPT Image models
+    { id: "gpt-image-1.5", name: "GPT Image 1.5", provider: "OpenAI", category: "image", description: "Latest & best" },
+    { id: "gpt-image-1", name: "GPT Image 1", provider: "OpenAI", category: "image", description: "High quality" },
+    { id: "gpt-image-1-mini", name: "GPT Image Mini", provider: "OpenAI", category: "image", description: "Fast & free" },
+    { id: "dall-e-3", name: "DALL-E 3", provider: "OpenAI", category: "image", description: "Classic DALL-E" },
+    // FLUX models (Black Forest Labs)
+    { id: "black-forest-labs/flux.2-max", name: "FLUX 2 Max", provider: "Black Forest", category: "image", description: "Highest quality" },
+    { id: "black-forest-labs/flux.2-pro", name: "FLUX 2 Pro", provider: "Black Forest", category: "image", description: "Professional" },
+    { id: "black-forest-labs/flux.2-flex", name: "FLUX 2 Flex", provider: "Black Forest", category: "image", description: "Customizable" },
+    { id: "black-forest-labs/flux.2-dev", name: "FLUX 2 Dev", provider: "Black Forest", category: "image", description: "Development" },
+    { id: "black-forest-labs/flux.1-schnell", name: "FLUX Schnell", provider: "Black Forest", category: "image", description: "Ultra fast" },
+    { id: "black-forest-labs/flux.1-kontext-pro", name: "FLUX Kontext", provider: "Black Forest", category: "image", description: "Image editing" },
+    { id: "black-forest-labs/flux.1.1-pro", name: "FLUX 1.1 Pro", provider: "Black Forest", category: "image", description: "Pro quality" },
+    // xAI Grok
+    { id: "grok-2-image", name: "Grok 2 Image", provider: "xAI", category: "image", description: "Grok imaging" },
+    // Google Gemini
+    { id: "gemini-2.5-flash-image-preview", name: "Nano Banana", provider: "Google", category: "image", description: "Gemini image" },
   ],
   code: [
-    { id: "gpt-4o", name: "GPT-4o Code", provider: "OpenAI", category: "code", description: "Best for coding" },
+    { id: "openai/gpt-5.3-codex", name: "GPT-5.3 Codex", provider: "OpenAI", category: "code", description: "Latest Codex" },
+    { id: "openai/gpt-5.2-codex", name: "GPT-5.2 Codex", provider: "OpenAI", category: "code", description: "Advanced Codex" },
+    { id: "openai/gpt-5.1-codex-max", name: "Codex Max", provider: "OpenAI", category: "code", description: "Maximum power" },
+    { id: "openai/gpt-5.1-codex", name: "GPT-5.1 Codex", provider: "OpenAI", category: "code", description: "Balanced Codex" },
+    { id: "openai/gpt-5.1-codex-mini", name: "Codex Mini", provider: "OpenAI", category: "code", description: "Fast Codex" },
+    { id: "x-ai/grok-code-fast-1", name: "Grok Code", provider: "xAI", category: "code", description: "Grok coding" },
     { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "Anthropic", category: "code", description: "Excellent coder" },
-    { id: "deepseek-chat", name: "DeepSeek Coder", provider: "DeepSeek", category: "code", description: "Coding specialist" },
+    { id: "deepseek-chat", name: "DeepSeek Coder", provider: "DeepSeek", category: "code", description: "Code specialist" },
     { id: "codestral-latest", name: "Codestral", provider: "Mistral", category: "code", description: "Code focused" },
   ],
   video: [
-    { id: "veo-3.0-generate-001", name: "Veo 3.0", provider: "Google", category: "video", description: "Google video AI" },
-    { id: "veo-2.0-generate-001", name: "Veo 2.0", provider: "Google", category: "video", description: "Stable video gen" },
+    // OpenAI Sora models
+    { id: "sora-2-pro", name: "Sora 2 Pro", provider: "OpenAI", category: "video", description: "Best quality" },
+    { id: "sora-2", name: "Sora 2", provider: "OpenAI", category: "video", description: "Balanced" },
+    // Google Veo models
+    { id: "veo-3.0-generate-001", name: "Veo 3.0", provider: "Google", category: "video", description: "Google video" },
+    { id: "veo-2.0-generate-001", name: "Veo 2.0", provider: "Google", category: "video", description: "Stable quality" },
+    // Vidu models
+    { id: "vidu/vidu-q1", name: "Vidu Q1", provider: "Vidu", category: "video", description: "1080p + audio" },
+    { id: "vidu/vidu-2.0", name: "Vidu 2.0", provider: "Vidu", category: "video", description: "High quality" },
+    // Wan AI models
+    { id: "Wan-AI/Wan2.2-T2V-A14B", name: "Wan 2.2 T2V", provider: "Wan AI", category: "video", description: "Text to video" },
+    // Kling AI
+    { id: "kling-video/v1.6/pro", name: "Kling 1.6 Pro", provider: "Kling", category: "video", description: "Kling pro" },
+    { id: "kling-video/v1.6/standard", name: "Kling 1.6", provider: "Kling", category: "video", description: "Kling standard" },
   ],
 }
 
@@ -134,14 +184,17 @@ const MODES = [
   { id: "voice", name: "Voice", icon: Mic },
 ] as const
 
-// Natural sounding voices - using OpenAI/ElevenLabs style voices
+// Natural sounding voices - using OpenAI provider via Puter.js
 const VOICE_OPTIONS = [
-  { id: "alloy", name: "Alloy", description: "Natural & balanced" },
-  { id: "echo", name: "Echo", description: "Warm & conversational" },
-  { id: "fable", name: "Fable", description: "Expressive & dynamic" },
-  { id: "onyx", name: "Onyx", description: "Deep & authoritative" },
-  { id: "nova", name: "Nova", description: "Friendly & upbeat" },
-  { id: "shimmer", name: "Shimmer", description: "Clear & articulate" },
+  { id: "alloy", name: "Alloy", description: "Natural & balanced", provider: "openai" },
+  { id: "echo", name: "Echo", description: "Warm & conversational", provider: "openai" },
+  { id: "fable", name: "Fable", description: "Expressive & dynamic", provider: "openai" },
+  { id: "onyx", name: "Onyx", description: "Deep & authoritative", provider: "openai" },
+  { id: "nova", name: "Nova", description: "Friendly & upbeat", provider: "openai" },
+  { id: "shimmer", name: "Shimmer", description: "Clear & articulate", provider: "openai" },
+  { id: "ash", name: "Ash", description: "Calm & professional", provider: "openai" },
+  { id: "coral", name: "Coral", description: "Bright & energetic", provider: "openai" },
+  { id: "sage", name: "Sage", description: "Wise & thoughtful", provider: "openai" },
 ]
 
 type Mode = typeof MODES[number]["id"]
@@ -202,6 +255,11 @@ const GENERATION_IDEAS = {
     "Cozy coffee shop interior with warm lighting and rain outside",
     "Futuristic spaceship interior with holographic displays",
     "Enchanted forest with glowing mushrooms and fairy lights",
+    "Steampunk airship flying through golden clouds at golden hour",
+    "Underwater crystal palace with bioluminescent sea creatures",
+    "Samurai warrior standing in a field of cherry blossoms",
+    "Northern lights dancing over a snowy mountain village",
+    "Art deco robot butler serving tea in a 1920s mansion",
   ],
   video: [
     "A sunrise drone shot flying over a calm ocean with gentle waves",
@@ -209,6 +267,11 @@ const GENERATION_IDEAS = {
     "Cinematic shot of a fox running through a snowy forest",
     "Abstract fluid art animation with vibrant colors",
     "A cozy fireplace with crackling flames and falling snow outside",
+    "Majestic eagle soaring through mountain peaks at golden hour",
+    "Northern lights dancing over a frozen lake with reflections",
+    "Rain drops falling on a window with city lights blurred behind",
+    "Butterfly emerging from a cocoon in slow motion",
+    "Clouds forming and swirling around a mountain peak",
   ],
 }
 
@@ -237,16 +300,22 @@ export function GrokChat() {
   const [isListening, setIsListening] = useState(false)
   const [isTTSEnabled, setIsTTSEnabled] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [userMemories, setUserMemories] = useState<string[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [customInstructions, setCustomInstructions] = useState("")
   const [instructionsInput, setInstructionsInput] = useState("")
   const [showIdeas, setShowIdeas] = useState(false)
+  const [newMemoryInput, setNewMemoryInput] = useState("")
+  const [currentThinking, setCurrentThinking] = useState<string>("")
+  const [showThinking, setShowThinking] = useState(true) // Toggle to show/hide thinking
 
   // Voice chat state
   const [selectedVoice, setSelectedVoice] = useState(VOICE_OPTIONS[0])
   const [isVoiceChatActive, setIsVoiceChatActive] = useState(false)
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
+  const [micPermissionGranted, setMicPermissionGranted] = useState<boolean | null>(null)
+  const [micError, setMicError] = useState<string | null>(null)
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
 
@@ -321,6 +390,7 @@ export function GrokChat() {
               await loadChatHistory("chat")
               await loadUserProfile()
               await loadCustomInstructions()
+              await loadUserMemories()
             }
           } catch (error) {
             console.error("Error checking auth:", error)
@@ -332,6 +402,24 @@ export function GrokChat() {
     }
 
     initPuter()
+
+    // Check microphone permission status on mount (without prompting)
+    const checkInitialMicPermission = async () => {
+      try {
+        if (navigator.permissions && navigator.permissions.query) {
+          const permissionStatus = await navigator.permissions.query({ name: "microphone" as PermissionName })
+          setMicPermissionGranted(permissionStatus.state === "granted")
+          
+          // Listen for permission changes
+          permissionStatus.onchange = () => {
+            setMicPermissionGranted(permissionStatus.state === "granted")
+          }
+        }
+      } catch {
+        // Permissions API not supported
+      }
+    }
+    checkInitialMicPermission()
 
     // Cleanup on unmount
     return () => {
@@ -350,6 +438,31 @@ export function GrokChat() {
       setCurrentChatId(null)
     }
   }, [selectedMode, isSignedIn, isPuterReady])
+
+  // Check for auto-generate prompt from gallery ideas
+  useEffect(() => {
+    if (isPuterReady && isSignedIn) {
+      const autoPrompt = sessionStorage.getItem("autoGeneratePrompt")
+      const autoMode = sessionStorage.getItem("autoGenerateMode") as Mode | null
+      
+      if (autoPrompt && autoMode) {
+        // Clear the stored values
+        sessionStorage.removeItem("autoGeneratePrompt")
+        sessionStorage.removeItem("autoGenerateMode")
+        
+        // Switch to the correct mode and send the prompt
+        if (autoMode !== selectedMode) {
+          setSelectedMode(autoMode)
+        }
+        
+        // Small delay to ensure mode switch is complete
+        setTimeout(() => {
+          createNewChat()
+          handleSendMessage(autoPrompt)
+        }, 200)
+      }
+    }
+  }, [isPuterReady, isSignedIn])
 
   const stopAllAudio = useCallback(() => {
     if (currentAudioRef.current) {
@@ -399,6 +512,37 @@ export function GrokChat() {
     }
   }
 
+  const loadUserMemories = async () => {
+    try {
+      const data = await window.puter.kv.get(MEMORIES_KEY)
+      if (data) {
+        setUserMemories(JSON.parse(data))
+      }
+    } catch (error) {
+      console.error("Error loading memories:", error)
+    }
+  }
+
+  const saveUserMemory = async (memory: string) => {
+    try {
+      const updated = [...userMemories, memory].slice(-50) // Keep last 50 memories
+      await window.puter.kv.set(MEMORIES_KEY, JSON.stringify(updated))
+      setUserMemories(updated)
+    } catch (error) {
+      console.error("Error saving memory:", error)
+    }
+  }
+
+  const deleteUserMemory = async (index: number) => {
+    try {
+      const updated = userMemories.filter((_, i) => i !== index)
+      await window.puter.kv.set(MEMORIES_KEY, JSON.stringify(updated))
+      setUserMemories(updated)
+    } catch (error) {
+      console.error("Error deleting memory:", error)
+    }
+  }
+
   const saveCustomInstructions = async () => {
     try {
       await window.puter.kv.set(INSTRUCTIONS_KEY, instructionsInput)
@@ -419,7 +563,49 @@ export function GrokChat() {
 
   const saveChatHistory = async (history: ChatHistory[], mode: Mode) => {
     try {
-      await window.puter.kv.set(STORAGE_KEYS[mode], JSON.stringify(history))
+      // Limit chat history and message content to stay under KV storage limits
+      const limitedHistory = history.slice(0, 50).map(chat => ({
+        ...chat,
+        messages: chat.messages.slice(-20).map(msg => ({
+          ...msg,
+          // Don't store large image/video URLs in chat history
+          imageUrl: undefined,
+          videoUrl: undefined,
+          content: msg.content.length > 5000 ? msg.content.substring(0, 5000) + "..." : msg.content,
+          thinking: msg.thinking ? msg.thinking.substring(0, 1000) : undefined,
+        }))
+      }))
+      
+      try {
+        await window.puter.kv.set(STORAGE_KEYS[mode], JSON.stringify(limitedHistory))
+      } catch (kvError: unknown) {
+        const kvErr = kvError as { code?: string }
+        if (kvErr?.code === "value_too_large") {
+          // Further reduce if still too large
+          try {
+            const reduced = limitedHistory.slice(0, 10).map(chat => ({
+              ...chat,
+              messages: chat.messages.slice(-5).map(msg => ({
+                ...msg,
+                content: msg.content.substring(0, 1000),
+                thinking: undefined
+              }))
+            }))
+            await window.puter.kv.set(STORAGE_KEYS[mode], JSON.stringify(reduced))
+          } catch {
+            // Still too large, save minimal info
+            const minimal = limitedHistory.slice(0, 5).map(chat => ({
+              ...chat,
+              messages: chat.messages.slice(-2).map(msg => ({
+                ...msg,
+                content: msg.content.substring(0, 200),
+                thinking: undefined
+              }))
+            }))
+            await window.puter.kv.set(STORAGE_KEYS[mode], JSON.stringify(minimal))
+          }
+        }
+      }
     } catch (error) {
       console.error("Error saving chat history:", error)
     }
@@ -431,16 +617,41 @@ export function GrokChat() {
       const existing = await window.puter.kv.get(key)
       const items: (GalleryImage | GalleryVideo)[] = existing ? JSON.parse(existing) : []
       
+      // For Puter KV storage, we have a ~400KB limit
+      // Store the URL directly - blob URLs won't persist but that's okay
+      // The gallery will show items that have valid URLs
       const newItem = {
         id: `${type}_${Date.now()}`,
         prompt,
-        url,
+        url: url, // Keep the original URL
         timestamp: Date.now(),
         model,
       }
       
-      const updated = [newItem, ...items].slice(0, type === "image" ? 100 : 50)
-      await window.puter.kv.set(key, JSON.stringify(updated))
+      // Limit storage size to stay under KV limits
+      const maxItems = type === "image" ? 30 : 10
+      const updated = [newItem, ...items].slice(0, maxItems)
+      
+      // Try to save, if it fails due to size, reduce items
+      try {
+        await window.puter.kv.set(key, JSON.stringify(updated))
+      } catch (kvError: unknown) {
+        const kvErr = kvError as { code?: string }
+        if (kvErr?.code === "value_too_large") {
+          // Reduce to fewer items and try again
+          try {
+            const reduced = updated.slice(0, Math.floor(maxItems / 3))
+            await window.puter.kv.set(key, JSON.stringify(reduced))
+          } catch {
+            // Still too large, just save metadata without URLs
+            const minimal = updated.slice(0, 5).map(item => ({
+              ...item,
+              url: "" // Can't store large URLs
+            }))
+            await window.puter.kv.set(key, JSON.stringify(minimal))
+          }
+        }
+      }
     } catch (error) {
       console.error(`Error saving to ${type} gallery:`, error)
     }
@@ -512,6 +723,7 @@ export function GrokChat() {
       await loadChatHistory(selectedMode)
       await loadUserProfile()
       await loadCustomInstructions()
+      await loadUserMemories()
       setShowAuthPrompt(false)
     } catch (error) {
       console.error("Error signing in:", error)
@@ -557,12 +769,12 @@ export function GrokChat() {
     }
   }
 
+  // Toggle voice input - simplified and robust
   const toggleVoiceInput = async () => {
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      alert("Speech recognition not supported in this browser")
-      return
-    }
+    // Clear any previous errors
+    setMicError(null)
 
+    // If already listening, stop
     if (isListening) {
       if (recognitionRef.current) {
         recognitionRef.current.stop()
@@ -571,36 +783,92 @@ export function GrokChat() {
       return
     }
 
-    // Request microphone permission first
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch (error) {
-      alert("Microphone permission denied. Please allow microphone access to use voice input.")
+    // Check for browser speech recognition support
+    const hasBrowserSTT = ("webkitSpeechRecognition" in window) || ("SpeechRecognition" in window)
+    if (!hasBrowserSTT) {
+      setMicError("Speech recognition not supported. Use Chrome or Edge.")
       return
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-    recognition.continuous = false
-    recognition.interimResults = false
-    recognition.lang = "en-US"
+    // Start speech recognition - it will handle its own permission request
+    try {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+      const recognition = new SpeechRecognition()
+      recognition.continuous = selectedMode === "voice"
+      recognition.interimResults = true
+      recognition.lang = "en-US"
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript
-      if (transcript.trim()) {
-        handleSendMessage(transcript)
+      let finalTranscript = ""
+
+      recognition.onstart = () => {
+        setMicPermissionGranted(true)
+        setMicError(null)
+        setIsListening(true)
       }
-    }
 
-    recognition.onerror = (event) => {
-      console.error("Speech recognition error:", event.error)
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let interimTranscript = ""
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript
+          } else {
+            interimTranscript += transcript
+          }
+        }
+        
+        // Show interim results in input
+        if (interimTranscript && selectedMode !== "voice") {
+          setInputValue(interimTranscript)
+        }
+        
+        // Send final result in voice mode
+        if (finalTranscript.trim() && selectedMode === "voice") {
+          handleSendMessage(finalTranscript.trim())
+          finalTranscript = ""
+        }
+      }
+
+      recognition.onerror = (event) => {
+        if (event.error === "not-allowed" || event.error === "permission-denied") {
+          setMicPermissionGranted(false)
+          setMicError("Microphone access denied. Click the lock icon in your browser's address bar to allow microphone access.")
+        } else if (event.error === "no-speech") {
+          // This is okay, just no speech detected
+          return
+        } else if (event.error === "network") {
+          setMicError("Network error. Check your connection.")
+        } else if (event.error === "aborted") {
+          // User or code aborted, ignore
+        } else {
+          setMicError(`Voice error: ${event.error}`)
+        }
+        setIsListening(false)
+      }
+      
+      recognition.onend = () => {
+        // For non-voice mode, send final transcript if any
+        if (finalTranscript.trim() && selectedMode !== "voice") {
+          handleSendMessage(finalTranscript.trim())
+        }
+        setIsListening(false)
+        
+        // In voice chat mode, restart listening after audio finishes
+        if (isVoiceChatActive && !isPlayingAudio && micPermissionGranted) {
+          setTimeout(() => {
+            if (isVoiceChatActive && !isPlayingAudio) {
+              toggleVoiceInput()
+            }
+          }, 1000)
+        }
+      }
+
+      recognitionRef.current = recognition
+      recognition.start()
+    } catch {
+      setMicError("Failed to start voice input. Please try again.")
       setIsListening(false)
     }
-    recognition.onend = () => setIsListening(false)
-
-    recognitionRef.current = recognition
-    setIsListening(true)
-    recognition.start()
   }
 
   const speakText = async (text: string, force: boolean = false) => {
@@ -619,28 +887,41 @@ export function GrokChat() {
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
       .trim()
 
+    // Limit text length for TTS (max 3000 chars per Puter docs)
+    const truncatedText = cleanText.length > 2500 ? cleanText.substring(0, 2500) + "..." : cleanText
+
     try {
       setIsPlayingAudio(true)
-      // Use Puter TTS with selected voice
-      const audio = await window.puter.ai.txt2speech(cleanText, {
+      // Use Puter TTS with OpenAI provider and selected voice
+      const audio = await window.puter.ai.txt2speech(truncatedText, {
+        provider: "openai",
+        model: "gpt-4o-mini-tts",
         voice: selectedVoice.id,
-        output_format: "mp3"
+        response_format: "mp3",
+        instructions: "Speak naturally and conversationally, with appropriate emotion and pacing."
       })
       currentAudioRef.current = audio
       audio.onended = () => {
         setIsPlayingAudio(false)
         currentAudioRef.current = null
+        // If in voice chat mode, start listening again after response
+        if (isVoiceChatActive && selectedMode === "voice") {
+          setTimeout(() => {
+            toggleVoiceInput()
+          }, 500)
+        }
       }
       audio.onerror = () => {
         setIsPlayingAudio(false)
         currentAudioRef.current = null
         // Fallback to browser TTS
-        fallbackTTS(cleanText)
+        fallbackTTS(truncatedText)
       }
       audio.play()
-    } catch {
+    } catch (error) {
+      console.error("TTS error:", error)
       // Fallback to browser TTS
-      fallbackTTS(cleanText)
+      fallbackTTS(truncatedText)
     }
   }
 
@@ -703,17 +984,12 @@ export function GrokChat() {
     setPreviewUrls([])
   }
 
-  const startVoiceChat = async () => {
-    // Request microphone permission first
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch (error) {
-      alert("Microphone permission denied. Please allow microphone access to use voice chat.")
-      return
-    }
-    
+  const startVoiceChat = () => {
+    // Clear any previous errors and start voice chat
+    setMicError(null)
     setIsVoiceChatActive(true)
     setIsTTSEnabled(true)
+    // Start listening - toggleVoiceInput will handle permission
     toggleVoiceInput()
   }
 
@@ -770,7 +1046,9 @@ export function GrokChat() {
   const clearMemory = async () => {
     try {
       await window.puter.kv.del(PROFILE_KEY)
+      await window.puter.kv.del(MEMORIES_KEY)
       setUserProfile(null)
+      setUserMemories([])
     } catch (error) {
       console.error("Error clearing memory:", error)
     }
@@ -839,7 +1117,7 @@ export function GrokChat() {
         const generatingMessage: Message = {
           id: `msg_gen_${Date.now()}`,
           role: "assistant",
-          content: "Generating your video... This may take a few minutes. Video generation uses your Puter credits.",
+          content: "Generating your video... This may take 1-3 minutes. Uses Puter credits (sign in to get free credits).",
           timestamp: Date.now(),
           type: "text",
           isGenerating: true,
@@ -900,20 +1178,40 @@ export function GrokChat() {
         }
       } catch (error: unknown) {
         console.error("Video generation error:", error)
-        // Check for Puter error object format: { code: 'insufficient_funds', error: '...', message: '...' }
         const errorObj = error as { code?: string; message?: string; error?: string }
         const errorCode = errorObj?.code || ""
         const errorText = errorObj?.message || errorObj?.error || (error instanceof Error ? error.message : String(error))
-        const isBalanceError = errorCode === "insufficient_funds" || 
-          errorText.toLowerCase().includes("insufficient") || 
-          errorText.toLowerCase().includes("funds") || 
-          errorText.toLowerCase().includes("balance")
+        
+        // Check for insufficient funds - Puter uses "User-Pays" model
+        const isInsufficientFunds = errorCode === "insufficient_funds" || 
+          errorText.toLowerCase().includes("insufficient") ||
+          errorText.toLowerCase().includes("funds") ||
+          errorText.toLowerCase().includes("balance") ||
+          errorText.toLowerCase().includes("credits")
+        
+        let helpfulMessage = ""
+        if (isInsufficientFunds) {
+          helpfulMessage = `**Need Puter Credits** 
+
+Video generation uses your Puter account credits. To generate videos:
+
+1. **Sign in to Puter** - Click "Sign In" at the top right
+2. **Get free credits** - New accounts get free credits to try AI features
+3. **Add more credits** - Visit [puter.com](https://puter.com) to add credits if needed
+
+Puter uses a "User-Pays" model where you control your own AI usage. This keeps the service free for developers!`
+        } else if (errorText.toLowerCase().includes("timeout") || errorText.toLowerCase().includes("timed out")) {
+          helpfulMessage = "Video generation is taking longer than expected. Video can take 1-3 minutes. Please try again."
+        } else if (errorText.toLowerCase().includes("network") || errorText.toLowerCase().includes("fetch")) {
+          helpfulMessage = "Network connection issue. Please check your internet and try again."
+        } else {
+          helpfulMessage = `Video generation error: ${errorText}. Try a different prompt or model.`
+        }
+        
         const errorMessage: Message = {
           id: `msg_${Date.now()}`,
           role: "assistant",
-          content: isBalanceError 
-            ? "**Insufficient Puter Credits**: Video generation requires Puter credits. Your Puter account needs more credits to generate videos. Please visit [puter.com](https://puter.com) to add credits or upgrade your account." 
-            : `Failed to generate video: ${errorText}. Please try a different prompt or try again later.`,
+          content: helpfulMessage,
           timestamp: Date.now(),
           type: "text",
         }
@@ -988,20 +1286,29 @@ export function GrokChat() {
         }
       } catch (error: unknown) {
         console.error("Image generation error:", error)
-        // Check for Puter error object format: { code: 'insufficient_funds', error: '...', message: '...' }
         const errorObj = error as { code?: string; message?: string; error?: string }
         const errorCode = errorObj?.code || ""
         const errorText = errorObj?.message || errorObj?.error || (error instanceof Error ? error.message : String(error))
-        const isBalanceError = errorCode === "insufficient_funds" || 
-          errorText.toLowerCase().includes("insufficient") || 
-          errorText.toLowerCase().includes("funds") || 
-          errorText.toLowerCase().includes("balance")
+        
+        const isInsufficientFunds = errorCode === "insufficient_funds" || 
+          errorText.toLowerCase().includes("insufficient") ||
+          errorText.toLowerCase().includes("funds") ||
+          errorText.toLowerCase().includes("balance") ||
+          errorText.toLowerCase().includes("credits")
+        
+        let helpfulMessage = ""
+        if (isInsufficientFunds) {
+          helpfulMessage = `**Need Puter Credits**
+
+Image generation uses your Puter account credits. Sign in to Puter and ensure you have credits available. New accounts get free credits! Visit [puter.com](https://puter.com) to manage your account.`
+        } else {
+          helpfulMessage = `Image generation error: ${errorText}. Try a different prompt or model.`
+        }
+        
         const errorMessage: Message = {
           id: `msg_${Date.now()}`,
           role: "assistant",
-          content: isBalanceError 
-            ? "**Insufficient Puter Credits**: Image generation requires Puter credits. Your Puter account needs more credits. Please visit [puter.com](https://puter.com) to add credits or upgrade your account." 
-            : `Failed to generate image: ${errorText}. Please try a different prompt or model.`,
+          content: helpfulMessage,
           timestamp: Date.now(),
           type: "text",
         }
@@ -1026,7 +1333,32 @@ export function GrokChat() {
 
       // Add user profile context
       if (userProfile && userProfile.traits.length > 0) {
-        systemPrompt += `\n\nUser Context: This user has shown interest in: ${userProfile.traits.join(", ")}. Tailor your responses accordingly.`
+        systemPrompt += `\n\nUser Interests & Traits: ${userProfile.traits.join(", ")}. Tailor your responses accordingly.`
+      }
+
+      // Add explicit user memories
+      if (userMemories.length > 0) {
+        systemPrompt += `\n\n**Important User Information to Remember:**\n${userMemories.map((m, i) => `${i + 1}. ${m}`).join("\n")}\n\nUse this information naturally in your responses when relevant.`
+      }
+
+      // Add thinking mode for research category or when explicitly enabled
+      const isResearchMode = selectedCategory === "research"
+      if (isResearchMode && showThinking) {
+        systemPrompt += `\n\n**Thinking Mode Enabled:**
+When answering, first show your thought process wrapped in <thinking>...</thinking> tags.
+Inside these tags, explain:
+- What the user is asking for
+- Key considerations and approaches
+- Your reasoning process
+Then provide your final answer after the thinking section.
+Example format:
+<thinking>
+Let me analyze this question...
+The key points are...
+I should consider...
+</thinking>
+
+[Your actual response here]`
       }
 
       const conversationHistory = [
@@ -1048,7 +1380,17 @@ export function GrokChat() {
           }
           if (chunk.text) {
             fullResponse += chunk.text
-            setStreamingMessage(fullResponse)
+            
+            // Check for thinking tags in streaming content
+            const thinkingMatch = fullResponse.match(/<thinking>([\s\S]*?)(<\/thinking>)?/i)
+            if (thinkingMatch) {
+              setCurrentThinking(thinkingMatch[1])
+              // Only show content after thinking tags
+              const afterThinking = fullResponse.replace(/<thinking>[\s\S]*?(<\/thinking>)?/i, "").trim()
+              setStreamingMessage(afterThinking)
+            } else {
+              setStreamingMessage(fullResponse)
+            }
           }
         }
       } else {
@@ -1057,16 +1399,28 @@ export function GrokChat() {
       }
 
       if (!abortControllerRef.current?.signal.aborted) {
+        // Parse thinking tags from response
+        let thinking = ""
+        let actualContent = fullResponse
+        const thinkingMatch = fullResponse.match(/<thinking>([\s\S]*?)<\/thinking>/i)
+        if (thinkingMatch) {
+          thinking = thinkingMatch[1].trim()
+          actualContent = fullResponse.replace(/<thinking>[\s\S]*?<\/thinking>/i, "").trim()
+        }
+
         const assistantMessage: Message = {
           id: `msg_${Date.now()}`,
           role: "assistant",
-          content: fullResponse,
+          content: actualContent,
           timestamp: Date.now(),
+          thinking: thinking || undefined,
+          thinkingComplete: true,
         }
 
         const updatedMessages = [...newMessages, assistantMessage]
         setMessages(updatedMessages)
         setStreamingMessage("")
+        setCurrentThinking("")
 
         if (isTTSEnabled && fullResponse) {
           speakText(fullResponse)
@@ -1213,14 +1567,30 @@ export function GrokChat() {
             <button
               onClick={toggleVoiceInput}
               className={cn(
-                "p-2 rounded-md transition-colors",
+                "p-2 rounded-md transition-colors relative",
                 isListening
                   ? "bg-destructive text-destructive-foreground"
-                  : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                  : micPermissionGranted === true
+                    ? "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                    : micPermissionGranted === false
+                      ? "hover:bg-secondary text-destructive/70 hover:text-destructive"
+                      : "hover:bg-secondary text-muted-foreground hover:text-foreground"
               )}
-              title="Voice input"
+              title={
+                isListening 
+                  ? "Stop listening" 
+                  : micPermissionGranted === false 
+                    ? "Microphone access denied - click to retry"
+                    : micPermissionGranted === true
+                      ? "Voice input (ready)"
+                      : "Voice input"
+              }
             >
               {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+              {/* Permission indicator dot */}
+              {micPermissionGranted === true && !isListening && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full" />
+              )}
             </button>
 
             <button
@@ -1235,6 +1605,22 @@ export function GrokChat() {
             >
               {isPlayingAudio ? <Volume2 size={18} /> : <VolumeX size={18} />}
             </button>
+
+            {/* Thinking mode toggle - only show for research models */}
+            {selectedCategory === "research" && (
+              <button
+                onClick={() => setShowThinking(!showThinking)}
+                className={cn(
+                  "p-2 rounded-md transition-colors",
+                  showThinking
+                    ? "bg-primary/20 text-primary"
+                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                )}
+                title={showThinking ? "Hide AI thinking" : "Show AI thinking"}
+              >
+                <Brain size={18} />
+              </button>
+            )}
 
             <button
               onClick={shareChat}
@@ -1281,6 +1667,22 @@ export function GrokChat() {
             )}
           </div>
         </header>
+
+        {/* Microphone Error Banner */}
+        {micError && (
+          <div className="px-4 py-3 bg-destructive/10 border-b border-destructive/20 flex items-center justify-between gap-3 animate-in slide-in-from-top-2">
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <MicOff size={16} />
+              <span>{micError}</span>
+            </div>
+            <button
+              onClick={() => setMicError(null)}
+              className="p-1 hover:bg-destructive/20 rounded transition-colors"
+            >
+              <X size={14} className="text-destructive" />
+            </button>
+          </div>
+        )}
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto">
@@ -1336,12 +1738,18 @@ export function GrokChat() {
                         <button
                           key={i}
                           onClick={() => {
-                            setInputValue(idea)
+                            // Create new chat and auto-send the idea
+                            createNewChat()
                             setShowIdeas(false)
+                            // Small delay to ensure state is updated
+                            setTimeout(() => {
+                              handleSendMessage(idea)
+                            }, 100)
                           }}
-                          className="text-left p-3 text-sm bg-card border border-border rounded-lg hover:border-primary/50 hover:bg-card/80 transition-all"
+                          className="text-left p-3 text-sm bg-card border border-border rounded-lg hover:border-primary/50 hover:bg-card/80 transition-all group"
                         >
-                          {idea}
+                          <span>{idea}</span>
+                          <span className="ml-2 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">Click to generate</span>
                         </button>
                       ))}
                     </div>
@@ -1362,13 +1770,15 @@ export function GrokChat() {
               {messages.map((message) => (
                 <ChatMessage key={message.id} message={message} />
               ))}
-              {streamingMessage && (
+              {(streamingMessage || currentThinking) && (
                 <ChatMessage
                   message={{
                     id: "streaming",
                     role: "assistant",
-                    content: streamingMessage,
+                    content: streamingMessage || "...",
                     timestamp: Date.now(),
+                    thinking: currentThinking || undefined,
+                    thinkingComplete: false,
                   }}
                   isStreaming
                 />
@@ -1708,25 +2118,83 @@ export function GrokChat() {
                 {/* Memory Section */}
                 <div>
                   <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-                    <User size={14} />
-                    User Memory
+                    <Brain size={14} />
+                    Memory & Personalization
                   </h3>
-                  {userProfile ? (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        Learned traits: {userProfile.traits.join(", ") || "None yet"}
-                      </p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Xmowg will remember these things about you across all conversations.
+                  </p>
+                  
+                  {/* Add new memory */}
+                  {isSignedIn && (
+                    <div className="flex gap-2 mb-3">
+                      <input
+                        type="text"
+                        value={newMemoryInput}
+                        onChange={(e) => setNewMemoryInput(e.target.value)}
+                        placeholder="e.g., My name is Alex, I love Python..."
+                        className="flex-1 px-3 py-2 text-sm bg-input border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newMemoryInput.trim()) {
+                            saveUserMemory(newMemoryInput.trim())
+                            setNewMemoryInput("")
+                          }
+                        }}
+                      />
                       <button
-                        onClick={clearMemory}
-                        className="flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                        onClick={() => {
+                          if (newMemoryInput.trim()) {
+                            saveUserMemory(newMemoryInput.trim())
+                            setNewMemoryInput("")
+                          }
+                        }}
+                        className="px-3 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
                       >
-                        <Trash2 size={14} />
-                        Clear Memory
+                        Add
                       </button>
                     </div>
+                  )}
+
+                  {/* Explicit memories list */}
+                  {userMemories.length > 0 && (
+                    <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
+                      {userMemories.map((memory, i) => (
+                        <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 bg-secondary/50 rounded-lg text-xs">
+                          <span className="truncate">{memory}</span>
+                          <button
+                            onClick={() => deleteUserMemory(i)}
+                            className="text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Learned traits */}
+                  {userProfile && userProfile.traits.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs text-muted-foreground mb-1">Learned from conversations:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {userProfile.traits.map((trait, i) => (
+                          <span key={i} className="px-2 py-1 bg-secondary text-xs rounded">{trait}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {isSignedIn ? (
+                    <button
+                      onClick={clearMemory}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={14} />
+                      Clear All Memory
+                    </button>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      {isSignedIn ? "Memory will build as you chat" : "Sign in to enable adaptive learning"}
+                      Sign in to enable memory and personalization
                     </p>
                   )}
                 </div>
