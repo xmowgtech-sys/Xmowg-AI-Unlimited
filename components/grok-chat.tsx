@@ -76,43 +76,67 @@ interface AIModel {
 // Organized models by category - using free Puter.js models
 const MODELS: Record<ModelCategory, AIModel[]> = {
   fast: [
-    { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI", category: "fast", description: "Fast & free" },
-    { id: "claude-3-5-haiku-latest", name: "Claude 3.5 Haiku", provider: "Anthropic", category: "fast", description: "Quick responses" },
-    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", provider: "Google", category: "fast", description: "Lightning fast" },
-    { id: "llama-3.3-70b", name: "Llama 3.3 70B", provider: "Meta", category: "fast", description: "Open source fast" },
+    { id: "gpt-5-nano", name: "GPT-5 Nano", provider: "OpenAI", category: "fast", description: "Fast & efficient" },
+    { id: "gpt-5.4-nano", name: "GPT-5.4 Nano", provider: "OpenAI", category: "fast", description: "Latest fast model" },
+    { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI", category: "fast", description: "Quick responses" },
+    { id: "claude-3-5-haiku-latest", name: "Claude 3.5 Haiku", provider: "Anthropic", category: "fast", description: "Lightning fast" },
+    { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", provider: "Google", category: "fast", description: "Super fast" },
+    { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", provider: "Google", category: "fast", description: "Latest flash" },
+    { id: "gemini-3-flash-preview", name: "Gemini 3 Flash", provider: "Google", category: "fast", description: "Newest flash" },
+    { id: "x-ai/grok-4-1-fast", name: "Grok 4.1 Fast", provider: "xAI", category: "fast", description: "Fast Grok" },
+    { id: "llama-3.3-70b", name: "Llama 3.3 70B", provider: "Meta", category: "fast", description: "Open source" },
   ],
   thinking: [
     { id: "gpt-4o", name: "GPT-4o", provider: "OpenAI", category: "thinking", description: "Deep reasoning" },
-    { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "Anthropic", category: "thinking", description: "Balanced thinking" },
-    { id: "gemini-2.5-pro-preview-06-05", name: "Gemini 2.5 Pro", provider: "Google", category: "thinking", description: "Advanced thinking" },
+    { id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5", provider: "Anthropic", category: "thinking", description: "Balanced thinking" },
+    { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "Anthropic", category: "thinking", description: "Advanced Claude" },
+    { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", provider: "Google", category: "thinking", description: "Pro thinking" },
+    { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro", provider: "Google", category: "thinking", description: "Latest Pro" },
     { id: "deepseek-chat", name: "DeepSeek Chat", provider: "DeepSeek", category: "thinking", description: "Deep analysis" },
+    { id: "deepseek/deepseek-r1", name: "DeepSeek R1", provider: "DeepSeek", category: "thinking", description: "Deep reasoning" },
+    { id: "x-ai/grok-4.3", name: "Grok 4.3", provider: "xAI", category: "thinking", description: "Latest Grok" },
+    { id: "x-ai/grok-4", name: "Grok 4", provider: "xAI", category: "thinking", description: "Powerful Grok" },
   ],
   pro: [
     { id: "claude-opus-4-20250514", name: "Claude Opus 4", provider: "Anthropic", category: "pro", description: "Most intelligent" },
     { id: "gpt-4.1", name: "GPT-4.1", provider: "OpenAI", category: "pro", description: "Latest GPT" },
     { id: "o3", name: "o3", provider: "OpenAI", category: "pro", description: "Best reasoning" },
-    { id: "gemini-2.5-flash-preview-05-20", name: "Gemini 2.5 Flash", provider: "Google", category: "pro", description: "Pro Flash" },
+    { id: "gemini-3-pro-preview", name: "Gemini 3 Pro", provider: "Google", category: "pro", description: "Top tier" },
+    { id: "x-ai/grok-4.20", name: "Grok 4.20", provider: "xAI", category: "pro", description: "Premium Grok" },
+    { id: "x-ai/grok-4.20-multi-agent", name: "Grok Multi-Agent", provider: "xAI", category: "pro", description: "Multi-agent" },
   ],
   research: [
     { id: "o4-mini", name: "o4 Mini", provider: "OpenAI", category: "research", description: "Reasoning model" },
-    { id: "deepseek-reasoner", name: "DeepSeek R1", provider: "DeepSeek", category: "research", description: "Research focused" },
+    { id: "deepseek-reasoner", name: "DeepSeek Reasoner", provider: "DeepSeek", category: "research", description: "Research focused" },
     { id: "qwq-32b", name: "QwQ 32B", provider: "Qwen", category: "research", description: "Deep reasoning" },
+    { id: "x-ai/grok-3-beta", name: "Grok 3 Beta", provider: "xAI", category: "research", description: "Research Grok" },
   ],
   image: [
     { id: "dall-e-3", name: "DALL-E 3", provider: "OpenAI", category: "image", description: "Best quality" },
     { id: "flux-schnell", name: "FLUX Schnell", provider: "Black Forest", category: "image", description: "Fast & artistic" },
     { id: "flux-pro", name: "FLUX Pro", provider: "Black Forest", category: "image", description: "Professional" },
     { id: "stability-core", name: "Stability Core", provider: "Stability", category: "image", description: "Stable Diffusion" },
+    { id: "grok-2-image", name: "Grok 2 Image", provider: "xAI", category: "image", description: "Grok imaging" },
+    { id: "gemini-2.5-flash-preview", name: "Nano Banana", provider: "Google", category: "image", description: "Gemini image" },
   ],
   code: [
-    { id: "gpt-4o", name: "GPT-4o Code", provider: "OpenAI", category: "code", description: "Best for coding" },
+    { id: "openai/gpt-5.3-codex", name: "GPT-5.3 Codex", provider: "OpenAI", category: "code", description: "Latest Codex" },
+    { id: "openai/gpt-5.2-codex", name: "GPT-5.2 Codex", provider: "OpenAI", category: "code", description: "Advanced Codex" },
+    { id: "openai/gpt-5.1-codex-max", name: "Codex Max", provider: "OpenAI", category: "code", description: "Maximum power" },
+    { id: "openai/gpt-5.1-codex", name: "GPT-5.1 Codex", provider: "OpenAI", category: "code", description: "Balanced Codex" },
+    { id: "openai/gpt-5.1-codex-mini", name: "Codex Mini", provider: "OpenAI", category: "code", description: "Fast Codex" },
+    { id: "x-ai/grok-code-fast-1", name: "Grok Code", provider: "xAI", category: "code", description: "Grok coding" },
     { id: "claude-sonnet-4-20250514", name: "Claude Sonnet 4", provider: "Anthropic", category: "code", description: "Excellent coder" },
-    { id: "deepseek-chat", name: "DeepSeek Coder", provider: "DeepSeek", category: "code", description: "Coding specialist" },
+    { id: "deepseek-chat", name: "DeepSeek Coder", provider: "DeepSeek", category: "code", description: "Code specialist" },
     { id: "codestral-latest", name: "Codestral", provider: "Mistral", category: "code", description: "Code focused" },
   ],
   video: [
-    { id: "veo-3.0-generate-001", name: "Veo 3.0", provider: "Google", category: "video", description: "Google video AI" },
-    { id: "veo-2.0-generate-001", name: "Veo 2.0", provider: "Google", category: "video", description: "Stable video gen" },
+    { id: "google/veo-3.1", name: "Veo 3.1", provider: "Google", category: "video", description: "Latest & best" },
+    { id: "google/veo-3.1-fast", name: "Veo 3.1 Fast", provider: "Google", category: "video", description: "2x faster" },
+    { id: "google/veo-3.1-lite", name: "Veo 3.1 Lite", provider: "Google", category: "video", description: "Cost effective" },
+    { id: "google/veo-3.0", name: "Veo 3.0", provider: "Google", category: "video", description: "Stable quality" },
+    { id: "google/veo-3.0-fast", name: "Veo 3.0 Fast", provider: "Google", category: "video", description: "Quick gen" },
+    { id: "google/veo-2.0", name: "Veo 2.0", provider: "Google", category: "video", description: "Classic Veo" },
   ],
 }
 
@@ -202,6 +226,11 @@ const GENERATION_IDEAS = {
     "Cozy coffee shop interior with warm lighting and rain outside",
     "Futuristic spaceship interior with holographic displays",
     "Enchanted forest with glowing mushrooms and fairy lights",
+    "Steampunk airship flying through golden clouds at golden hour",
+    "Underwater crystal palace with bioluminescent sea creatures",
+    "Samurai warrior standing in a field of cherry blossoms",
+    "Northern lights dancing over a snowy mountain village",
+    "Art deco robot butler serving tea in a 1920s mansion",
   ],
   video: [
     "A sunrise drone shot flying over a calm ocean with gentle waves",
@@ -209,6 +238,11 @@ const GENERATION_IDEAS = {
     "Cinematic shot of a fox running through a snowy forest",
     "Abstract fluid art animation with vibrant colors",
     "A cozy fireplace with crackling flames and falling snow outside",
+    "Majestic eagle soaring through mountain peaks at golden hour",
+    "Northern lights dancing over a frozen lake with reflections",
+    "Rain drops falling on a window with city lights blurred behind",
+    "Butterfly emerging from a cocoon in slow motion",
+    "Clouds forming and swirling around a mountain peak",
   ],
 }
 
@@ -351,6 +385,31 @@ export function GrokChat() {
     }
   }, [selectedMode, isSignedIn, isPuterReady])
 
+  // Check for auto-generate prompt from gallery ideas
+  useEffect(() => {
+    if (isPuterReady && isSignedIn) {
+      const autoPrompt = sessionStorage.getItem("autoGeneratePrompt")
+      const autoMode = sessionStorage.getItem("autoGenerateMode") as Mode | null
+      
+      if (autoPrompt && autoMode) {
+        // Clear the stored values
+        sessionStorage.removeItem("autoGeneratePrompt")
+        sessionStorage.removeItem("autoGenerateMode")
+        
+        // Switch to the correct mode and send the prompt
+        if (autoMode !== selectedMode) {
+          setSelectedMode(autoMode)
+        }
+        
+        // Small delay to ensure mode switch is complete
+        setTimeout(() => {
+          createNewChat()
+          handleSendMessage(autoPrompt)
+        }, 200)
+      }
+    }
+  }, [isPuterReady, isSignedIn])
+
   const stopAllAudio = useCallback(() => {
     if (currentAudioRef.current) {
       currentAudioRef.current.pause()
@@ -431,15 +490,35 @@ export function GrokChat() {
       const existing = await window.puter.kv.get(key)
       const items: (GalleryImage | GalleryVideo)[] = existing ? JSON.parse(existing) : []
       
+      // Convert blob URL to data URL for persistent storage
+      let persistentUrl = url
+      if (url.startsWith("blob:")) {
+        try {
+          const response = await fetch(url)
+          const blob = await response.blob()
+          persistentUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.onerror = reject
+            reader.readAsDataURL(blob)
+          })
+        } catch (conversionError) {
+          console.error("Error converting blob to data URL:", conversionError)
+          // Still save with blob URL as fallback
+        }
+      }
+      
       const newItem = {
         id: `${type}_${Date.now()}`,
         prompt,
-        url,
+        url: persistentUrl,
         timestamp: Date.now(),
         model,
       }
       
-      const updated = [newItem, ...items].slice(0, type === "image" ? 100 : 50)
+      // Limit storage size - fewer items for videos due to larger size
+      const maxItems = type === "image" ? 50 : 20
+      const updated = [newItem, ...items].slice(0, maxItems)
       await window.puter.kv.set(key, JSON.stringify(updated))
     } catch (error) {
       console.error(`Error saving to ${type} gallery:`, error)
@@ -900,20 +979,27 @@ export function GrokChat() {
         }
       } catch (error: unknown) {
         console.error("Video generation error:", error)
-        // Check for Puter error object format: { code: 'insufficient_funds', error: '...', message: '...' }
+        // Puter.js models are FREE and UNLIMITED - no token limits
+        // Common errors are network issues or model availability
         const errorObj = error as { code?: string; message?: string; error?: string }
-        const errorCode = errorObj?.code || ""
         const errorText = errorObj?.message || errorObj?.error || (error instanceof Error ? error.message : String(error))
-        const isBalanceError = errorCode === "insufficient_funds" || 
-          errorText.toLowerCase().includes("insufficient") || 
-          errorText.toLowerCase().includes("funds") || 
-          errorText.toLowerCase().includes("balance")
+        
+        // Provide helpful error message - no token/balance issues with Puter.js
+        let helpfulMessage = `Video generation encountered an issue. `
+        if (errorText.toLowerCase().includes("timeout") || errorText.toLowerCase().includes("timed out")) {
+          helpfulMessage += "The generation is taking longer than expected. Video generation can take 1-3 minutes. Please try again."
+        } else if (errorText.toLowerCase().includes("network") || errorText.toLowerCase().includes("fetch")) {
+          helpfulMessage += "Network connection issue. Please check your internet and try again."
+        } else if (errorText.toLowerCase().includes("token") || errorText.toLowerCase().includes("limit")) {
+          helpfulMessage += "Note: Puter.js provides FREE unlimited AI access. If you see token errors, please refresh the page and try again."
+        } else {
+          helpfulMessage += `Error: ${errorText}. Try a different prompt or model.`
+        }
+        
         const errorMessage: Message = {
           id: `msg_${Date.now()}`,
           role: "assistant",
-          content: isBalanceError 
-            ? "**Insufficient Puter Credits**: Video generation requires Puter credits. Your Puter account needs more credits to generate videos. Please visit [puter.com](https://puter.com) to add credits or upgrade your account." 
-            : `Failed to generate video: ${errorText}. Please try a different prompt or try again later.`,
+          content: helpfulMessage,
           timestamp: Date.now(),
           type: "text",
         }
@@ -988,20 +1074,21 @@ export function GrokChat() {
         }
       } catch (error: unknown) {
         console.error("Image generation error:", error)
-        // Check for Puter error object format: { code: 'insufficient_funds', error: '...', message: '...' }
+        // Puter.js models are FREE and UNLIMITED
         const errorObj = error as { code?: string; message?: string; error?: string }
-        const errorCode = errorObj?.code || ""
         const errorText = errorObj?.message || errorObj?.error || (error instanceof Error ? error.message : String(error))
-        const isBalanceError = errorCode === "insufficient_funds" || 
-          errorText.toLowerCase().includes("insufficient") || 
-          errorText.toLowerCase().includes("funds") || 
-          errorText.toLowerCase().includes("balance")
+        
+        let helpfulMessage = `Image generation encountered an issue. `
+        if (errorText.toLowerCase().includes("token") || errorText.toLowerCase().includes("limit")) {
+          helpfulMessage += "Note: Puter.js provides FREE unlimited AI access. Please refresh and try again."
+        } else {
+          helpfulMessage += `Error: ${errorText}. Try a different prompt or model.`
+        }
+        
         const errorMessage: Message = {
           id: `msg_${Date.now()}`,
           role: "assistant",
-          content: isBalanceError 
-            ? "**Insufficient Puter Credits**: Image generation requires Puter credits. Your Puter account needs more credits. Please visit [puter.com](https://puter.com) to add credits or upgrade your account." 
-            : `Failed to generate image: ${errorText}. Please try a different prompt or model.`,
+          content: helpfulMessage,
           timestamp: Date.now(),
           type: "text",
         }
@@ -1336,12 +1423,18 @@ export function GrokChat() {
                         <button
                           key={i}
                           onClick={() => {
-                            setInputValue(idea)
+                            // Create new chat and auto-send the idea
+                            createNewChat()
                             setShowIdeas(false)
+                            // Small delay to ensure state is updated
+                            setTimeout(() => {
+                              handleSendMessage(idea)
+                            }, 100)
                           }}
-                          className="text-left p-3 text-sm bg-card border border-border rounded-lg hover:border-primary/50 hover:bg-card/80 transition-all"
+                          className="text-left p-3 text-sm bg-card border border-border rounded-lg hover:border-primary/50 hover:bg-card/80 transition-all group"
                         >
-                          {idea}
+                          <span>{idea}</span>
+                          <span className="ml-2 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">Click to generate</span>
                         </button>
                       ))}
                     </div>
