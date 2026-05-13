@@ -315,9 +315,9 @@ export function GrokChat() {
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
   const [micPermissionGranted, setMicPermissionGranted] = useState<boolean | null>(null)
+  const [micError, setMicError] = useState<string | null>(null)
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
-  const mediaStreamRef = useRef<MediaStream | null>(null)
 
   // File upload state
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
@@ -426,11 +426,6 @@ export function GrokChat() {
       stopAllAudio()
       if (recognitionRef.current) {
         recognitionRef.current.stop()
-      }
-      // Release media stream
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(track => track.stop())
-        mediaStreamRef.current = null
       }
     }
   }, [])
@@ -774,79 +769,12 @@ export function GrokChat() {
     }
   }
 
-  // Check microphone permission status without prompting
-  const checkMicPermission = async (): Promise<boolean> => {
-    // If we already know permission is granted, return true
-    if (micPermissionGranted === true && mediaStreamRef.current) {
-      return true
-    }
-
-    // First, try to check permission status using Permissions API (no prompt)
-    try {
-      if (navigator.permissions && navigator.permissions.query) {
-        const permissionStatus = await navigator.permissions.query({ name: "microphone" as PermissionName })
-        
-        if (permissionStatus.state === "granted") {
-          setMicPermissionGranted(true)
-          return true
-        } else if (permissionStatus.state === "denied") {
-          setMicPermissionGranted(false)
-          return false
-        }
-        // If "prompt", we need to actually request it
-      }
-    } catch {
-      // Permissions API not supported, continue to getUserMedia
-    }
-
-    return false
-  }
-
-  // Request microphone permission (only call when needed)
-  const requestMicPermission = async (): Promise<boolean> => {
-    // Already have permission and stream
-    if (micPermissionGranted === true && mediaStreamRef.current) {
-      return true
-    }
-
-    try {
-      // Request permission and get stream
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      
-      // Store the stream for reuse
-      mediaStreamRef.current = stream
-      setMicPermissionGranted(true)
-      
-      return true
-    } catch (error) {
-      console.error("Microphone permission error:", error)
-      setMicPermissionGranted(false)
-      return false
-    }
-  }
-
-  // Ensure microphone access - checks first, only prompts if needed
-  const ensureMicrophoneAccess = async (): Promise<boolean> => {
-    // Check if already granted (no prompt)
-    const alreadyGranted = await checkMicPermission()
-    if (alreadyGranted) {
-      return true
-    }
-
-    // Need to request permission (will prompt if not yet decided)
-    const granted = await requestMicPermission()
-    if (!granted) {
-      alert("Microphone permission denied. Please allow microphone access to use voice input.")
-      return false
-    }
-    
-    return true
-  }
-
+  // Toggle voice input - simplified and robust
   const toggleVoiceInput = async () => {
-    // Check for browser speech recognition support
-    const hasBrowserSTT = ("webkitSpeechRecognition" in window) || ("SpeechRecognition" in window)
-    
+    // Clear any previous errors
+    setMicError(null)
+
+    // If already listening, stop
     if (isListening) {
       if (recognitionRef.current) {
         recognitionRef.current.stop()
@@ -855,21 +783,28 @@ export function GrokChat() {
       return
     }
 
-    // Ensure microphone access (only prompts if not already granted)
-    const hasAccess = await ensureMicrophoneAccess()
-    if (!hasAccess) {
+    // Check for browser speech recognition support
+    const hasBrowserSTT = ("webkitSpeechRecognition" in window) || ("SpeechRecognition" in window)
+    if (!hasBrowserSTT) {
+      setMicError("Speech recognition not supported. Use Chrome or Edge.")
       return
     }
 
-    // Use browser's SpeechRecognition for real-time voice input
-    if (hasBrowserSTT) {
+    // Start speech recognition - it will handle its own permission request
+    try {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
       const recognition = new SpeechRecognition()
-      recognition.continuous = selectedMode === "voice" // Continuous for voice mode
+      recognition.continuous = selectedMode === "voice"
       recognition.interimResults = true
       recognition.lang = "en-US"
 
       let finalTranscript = ""
+
+      recognition.onstart = () => {
+        setMicPermissionGranted(true)
+        setMicError(null)
+        setIsListening(true)
+      }
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         let interimTranscript = ""
@@ -884,10 +819,10 @@ export function GrokChat() {
         
         // Show interim results in input
         if (interimTranscript && selectedMode !== "voice") {
-          setInputValue(prev => prev ? prev : interimTranscript)
+          setInputValue(interimTranscript)
         }
         
-        // Send final result
+        // Send final result in voice mode
         if (finalTranscript.trim() && selectedMode === "voice") {
           handleSendMessage(finalTranscript.trim())
           finalTranscript = ""
@@ -895,23 +830,33 @@ export function GrokChat() {
       }
 
       recognition.onerror = (event) => {
-        console.error("Speech recognition error:", event.error)
-        if (event.error !== "no-speech") {
-          setIsListening(false)
+        if (event.error === "not-allowed" || event.error === "permission-denied") {
+          setMicPermissionGranted(false)
+          setMicError("Microphone access denied. Click the lock icon in your browser's address bar to allow microphone access.")
+        } else if (event.error === "no-speech") {
+          // This is okay, just no speech detected
+          return
+        } else if (event.error === "network") {
+          setMicError("Network error. Check your connection.")
+        } else if (event.error === "aborted") {
+          // User or code aborted, ignore
+        } else {
+          setMicError(`Voice error: ${event.error}`)
         }
+        setIsListening(false)
       }
       
       recognition.onend = () => {
-        // For non-voice mode, send final transcript
+        // For non-voice mode, send final transcript if any
         if (finalTranscript.trim() && selectedMode !== "voice") {
           handleSendMessage(finalTranscript.trim())
         }
         setIsListening(false)
         
-        // In voice chat mode, restart listening after a pause
-        if (isVoiceChatActive && !isPlayingAudio) {
+        // In voice chat mode, restart listening after audio finishes
+        if (isVoiceChatActive && !isPlayingAudio && micPermissionGranted) {
           setTimeout(() => {
-            if (isVoiceChatActive) {
+            if (isVoiceChatActive && !isPlayingAudio) {
               toggleVoiceInput()
             }
           }, 1000)
@@ -919,10 +864,10 @@ export function GrokChat() {
       }
 
       recognitionRef.current = recognition
-      setIsListening(true)
       recognition.start()
-    } else {
-      alert("Speech recognition not supported in this browser. Please use Chrome or Edge.")
+    } catch {
+      setMicError("Failed to start voice input. Please try again.")
+      setIsListening(false)
     }
   }
 
@@ -1039,15 +984,12 @@ export function GrokChat() {
     setPreviewUrls([])
   }
 
-  const startVoiceChat = async () => {
-    // Use the permission management system (only prompts if not already granted)
-    const hasAccess = await ensureMicrophoneAccess()
-    if (!hasAccess) {
-      return
-    }
-    
+  const startVoiceChat = () => {
+    // Clear any previous errors and start voice chat
+    setMicError(null)
     setIsVoiceChatActive(true)
     setIsTTSEnabled(true)
+    // Start listening - toggleVoiceInput will handle permission
     toggleVoiceInput()
   }
 
@@ -1725,6 +1667,22 @@ I should consider...
             )}
           </div>
         </header>
+
+        {/* Microphone Error Banner */}
+        {micError && (
+          <div className="px-4 py-3 bg-destructive/10 border-b border-destructive/20 flex items-center justify-between gap-3 animate-in slide-in-from-top-2">
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <MicOff size={16} />
+              <span>{micError}</span>
+            </div>
+            <button
+              onClick={() => setMicError(null)}
+              className="p-1 hover:bg-destructive/20 rounded transition-colors"
+            >
+              <X size={14} className="text-destructive" />
+            </button>
+          </div>
+        )}
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto">
