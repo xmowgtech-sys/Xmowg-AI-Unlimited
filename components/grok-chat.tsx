@@ -314,8 +314,10 @@ export function GrokChat() {
   const [isVoiceChatActive, setIsVoiceChatActive] = useState(false)
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
+  const [micPermissionGranted, setMicPermissionGranted] = useState<boolean | null>(null)
   const currentAudioRef = useRef<HTMLAudioElement | null>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
 
   // File upload state
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
@@ -401,11 +403,34 @@ export function GrokChat() {
 
     initPuter()
 
+    // Check microphone permission status on mount (without prompting)
+    const checkInitialMicPermission = async () => {
+      try {
+        if (navigator.permissions && navigator.permissions.query) {
+          const permissionStatus = await navigator.permissions.query({ name: "microphone" as PermissionName })
+          setMicPermissionGranted(permissionStatus.state === "granted")
+          
+          // Listen for permission changes
+          permissionStatus.onchange = () => {
+            setMicPermissionGranted(permissionStatus.state === "granted")
+          }
+        }
+      } catch {
+        // Permissions API not supported
+      }
+    }
+    checkInitialMicPermission()
+
     // Cleanup on unmount
     return () => {
       stopAllAudio()
       if (recognitionRef.current) {
         recognitionRef.current.stop()
+      }
+      // Release media stream
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => track.stop())
+        mediaStreamRef.current = null
       }
     }
   }, [])
@@ -562,10 +587,28 @@ export function GrokChat() {
         const kvErr = kvError as { code?: string }
         if (kvErr?.code === "value_too_large") {
           // Further reduce if still too large
-          const reduced = limitedHistory.slice(0, 20)
-          await window.puter.kv.set(STORAGE_KEYS[mode], JSON.stringify(reduced))
-        } else {
-          throw kvError
+          try {
+            const reduced = limitedHistory.slice(0, 10).map(chat => ({
+              ...chat,
+              messages: chat.messages.slice(-5).map(msg => ({
+                ...msg,
+                content: msg.content.substring(0, 1000),
+                thinking: undefined
+              }))
+            }))
+            await window.puter.kv.set(STORAGE_KEYS[mode], JSON.stringify(reduced))
+          } catch {
+            // Still too large, save minimal info
+            const minimal = limitedHistory.slice(0, 5).map(chat => ({
+              ...chat,
+              messages: chat.messages.slice(-2).map(msg => ({
+                ...msg,
+                content: msg.content.substring(0, 200),
+                thinking: undefined
+              }))
+            }))
+            await window.puter.kv.set(STORAGE_KEYS[mode], JSON.stringify(minimal))
+          }
         }
       }
     } catch (error) {
@@ -601,10 +644,17 @@ export function GrokChat() {
         const kvErr = kvError as { code?: string }
         if (kvErr?.code === "value_too_large") {
           // Reduce to fewer items and try again
-          const reduced = updated.slice(0, Math.floor(maxItems / 2))
-          await window.puter.kv.set(key, JSON.stringify(reduced))
-        } else {
-          throw kvError
+          try {
+            const reduced = updated.slice(0, Math.floor(maxItems / 3))
+            await window.puter.kv.set(key, JSON.stringify(reduced))
+          } catch {
+            // Still too large, just save metadata without URLs
+            const minimal = updated.slice(0, 5).map(item => ({
+              ...item,
+              url: "" // Can't store large URLs
+            }))
+            await window.puter.kv.set(key, JSON.stringify(minimal))
+          }
         }
       }
     } catch (error) {
@@ -724,6 +774,75 @@ export function GrokChat() {
     }
   }
 
+  // Check microphone permission status without prompting
+  const checkMicPermission = async (): Promise<boolean> => {
+    // If we already know permission is granted, return true
+    if (micPermissionGranted === true && mediaStreamRef.current) {
+      return true
+    }
+
+    // First, try to check permission status using Permissions API (no prompt)
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        const permissionStatus = await navigator.permissions.query({ name: "microphone" as PermissionName })
+        
+        if (permissionStatus.state === "granted") {
+          setMicPermissionGranted(true)
+          return true
+        } else if (permissionStatus.state === "denied") {
+          setMicPermissionGranted(false)
+          return false
+        }
+        // If "prompt", we need to actually request it
+      }
+    } catch {
+      // Permissions API not supported, continue to getUserMedia
+    }
+
+    return false
+  }
+
+  // Request microphone permission (only call when needed)
+  const requestMicPermission = async (): Promise<boolean> => {
+    // Already have permission and stream
+    if (micPermissionGranted === true && mediaStreamRef.current) {
+      return true
+    }
+
+    try {
+      // Request permission and get stream
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      
+      // Store the stream for reuse
+      mediaStreamRef.current = stream
+      setMicPermissionGranted(true)
+      
+      return true
+    } catch (error) {
+      console.error("Microphone permission error:", error)
+      setMicPermissionGranted(false)
+      return false
+    }
+  }
+
+  // Ensure microphone access - checks first, only prompts if needed
+  const ensureMicrophoneAccess = async (): Promise<boolean> => {
+    // Check if already granted (no prompt)
+    const alreadyGranted = await checkMicPermission()
+    if (alreadyGranted) {
+      return true
+    }
+
+    // Need to request permission (will prompt if not yet decided)
+    const granted = await requestMicPermission()
+    if (!granted) {
+      alert("Microphone permission denied. Please allow microphone access to use voice input.")
+      return false
+    }
+    
+    return true
+  }
+
   const toggleVoiceInput = async () => {
     // Check for browser speech recognition support
     const hasBrowserSTT = ("webkitSpeechRecognition" in window) || ("SpeechRecognition" in window)
@@ -736,11 +855,9 @@ export function GrokChat() {
       return
     }
 
-    // Request microphone permission first
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch {
-      alert("Microphone permission denied. Please allow microphone access to use voice input.")
+    // Ensure microphone access (only prompts if not already granted)
+    const hasAccess = await ensureMicrophoneAccess()
+    if (!hasAccess) {
       return
     }
 
@@ -923,11 +1040,9 @@ export function GrokChat() {
   }
 
   const startVoiceChat = async () => {
-    // Request microphone permission first
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch (error) {
-      alert("Microphone permission denied. Please allow microphone access to use voice chat.")
+    // Use the permission management system (only prompts if not already granted)
+    const hasAccess = await ensureMicrophoneAccess()
+    if (!hasAccess) {
       return
     }
     
@@ -1510,14 +1625,30 @@ I should consider...
             <button
               onClick={toggleVoiceInput}
               className={cn(
-                "p-2 rounded-md transition-colors",
+                "p-2 rounded-md transition-colors relative",
                 isListening
                   ? "bg-destructive text-destructive-foreground"
-                  : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                  : micPermissionGranted === true
+                    ? "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                    : micPermissionGranted === false
+                      ? "hover:bg-secondary text-destructive/70 hover:text-destructive"
+                      : "hover:bg-secondary text-muted-foreground hover:text-foreground"
               )}
-              title="Voice input"
+              title={
+                isListening 
+                  ? "Stop listening" 
+                  : micPermissionGranted === false 
+                    ? "Microphone access denied - click to retry"
+                    : micPermissionGranted === true
+                      ? "Voice input (ready)"
+                      : "Voice input"
+              }
             >
               {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+              {/* Permission indicator dot */}
+              {micPermissionGranted === true && !isListening && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full" />
+              )}
             </button>
 
             <button
