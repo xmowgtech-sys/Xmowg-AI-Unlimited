@@ -112,12 +112,23 @@ const MODELS: Record<ModelCategory, AIModel[]> = {
     { id: "x-ai/grok-3-beta", name: "Grok 3 Beta", provider: "xAI", category: "research", description: "Research Grok" },
   ],
   image: [
-    { id: "dall-e-3", name: "DALL-E 3", provider: "OpenAI", category: "image", description: "Best quality" },
-    { id: "flux-schnell", name: "FLUX Schnell", provider: "Black Forest", category: "image", description: "Fast & artistic" },
-    { id: "flux-pro", name: "FLUX Pro", provider: "Black Forest", category: "image", description: "Professional" },
-    { id: "stability-core", name: "Stability Core", provider: "Stability", category: "image", description: "Stable Diffusion" },
+    // OpenAI GPT Image models
+    { id: "gpt-image-1.5", name: "GPT Image 1.5", provider: "OpenAI", category: "image", description: "Latest & best" },
+    { id: "gpt-image-1", name: "GPT Image 1", provider: "OpenAI", category: "image", description: "High quality" },
+    { id: "gpt-image-1-mini", name: "GPT Image Mini", provider: "OpenAI", category: "image", description: "Fast & free" },
+    { id: "dall-e-3", name: "DALL-E 3", provider: "OpenAI", category: "image", description: "Classic DALL-E" },
+    // FLUX models (Black Forest Labs)
+    { id: "black-forest-labs/flux.2-max", name: "FLUX 2 Max", provider: "Black Forest", category: "image", description: "Highest quality" },
+    { id: "black-forest-labs/flux.2-pro", name: "FLUX 2 Pro", provider: "Black Forest", category: "image", description: "Professional" },
+    { id: "black-forest-labs/flux.2-flex", name: "FLUX 2 Flex", provider: "Black Forest", category: "image", description: "Customizable" },
+    { id: "black-forest-labs/flux.2-dev", name: "FLUX 2 Dev", provider: "Black Forest", category: "image", description: "Development" },
+    { id: "black-forest-labs/flux.1-schnell", name: "FLUX Schnell", provider: "Black Forest", category: "image", description: "Ultra fast" },
+    { id: "black-forest-labs/flux.1-kontext-pro", name: "FLUX Kontext", provider: "Black Forest", category: "image", description: "Image editing" },
+    { id: "black-forest-labs/flux.1.1-pro", name: "FLUX 1.1 Pro", provider: "Black Forest", category: "image", description: "Pro quality" },
+    // xAI Grok
     { id: "grok-2-image", name: "Grok 2 Image", provider: "xAI", category: "image", description: "Grok imaging" },
-    { id: "gemini-2.5-flash-preview", name: "Nano Banana", provider: "Google", category: "image", description: "Gemini image" },
+    // Google Gemini
+    { id: "gemini-2.5-flash-image-preview", name: "Nano Banana", provider: "Google", category: "image", description: "Gemini image" },
   ],
   code: [
     { id: "openai/gpt-5.3-codex", name: "GPT-5.3 Codex", provider: "OpenAI", category: "code", description: "Latest Codex" },
@@ -131,12 +142,20 @@ const MODELS: Record<ModelCategory, AIModel[]> = {
     { id: "codestral-latest", name: "Codestral", provider: "Mistral", category: "code", description: "Code focused" },
   ],
   video: [
-    { id: "google/veo-3.1", name: "Veo 3.1", provider: "Google", category: "video", description: "Latest & best" },
-    { id: "google/veo-3.1-fast", name: "Veo 3.1 Fast", provider: "Google", category: "video", description: "2x faster" },
-    { id: "google/veo-3.1-lite", name: "Veo 3.1 Lite", provider: "Google", category: "video", description: "Cost effective" },
-    { id: "google/veo-3.0", name: "Veo 3.0", provider: "Google", category: "video", description: "Stable quality" },
-    { id: "google/veo-3.0-fast", name: "Veo 3.0 Fast", provider: "Google", category: "video", description: "Quick gen" },
-    { id: "google/veo-2.0", name: "Veo 2.0", provider: "Google", category: "video", description: "Classic Veo" },
+    // OpenAI Sora models
+    { id: "sora-2-pro", name: "Sora 2 Pro", provider: "OpenAI", category: "video", description: "Best quality" },
+    { id: "sora-2", name: "Sora 2", provider: "OpenAI", category: "video", description: "Balanced" },
+    // Google Veo models
+    { id: "veo-3.0-generate-001", name: "Veo 3.0", provider: "Google", category: "video", description: "Google video" },
+    { id: "veo-2.0-generate-001", name: "Veo 2.0", provider: "Google", category: "video", description: "Stable quality" },
+    // Vidu models
+    { id: "vidu/vidu-q1", name: "Vidu Q1", provider: "Vidu", category: "video", description: "1080p + audio" },
+    { id: "vidu/vidu-2.0", name: "Vidu 2.0", provider: "Vidu", category: "video", description: "High quality" },
+    // Wan AI models
+    { id: "Wan-AI/Wan2.2-T2V-A14B", name: "Wan 2.2 T2V", provider: "Wan AI", category: "video", description: "Text to video" },
+    // Kling AI
+    { id: "kling-video/v1.6/pro", name: "Kling 1.6 Pro", provider: "Kling", category: "video", description: "Kling pro" },
+    { id: "kling-video/v1.6/standard", name: "Kling 1.6", provider: "Kling", category: "video", description: "Kling standard" },
   ],
 }
 
@@ -918,7 +937,7 @@ export function GrokChat() {
         const generatingMessage: Message = {
           id: `msg_gen_${Date.now()}`,
           role: "assistant",
-          content: "Generating your video... This may take a few minutes. Video generation uses your Puter credits.",
+          content: "Generating your video... This may take 1-3 minutes. Uses Puter credits (sign in to get free credits).",
           timestamp: Date.now(),
           type: "text",
           isGenerating: true,
@@ -979,21 +998,34 @@ export function GrokChat() {
         }
       } catch (error: unknown) {
         console.error("Video generation error:", error)
-        // Puter.js models are FREE and UNLIMITED - no token limits
-        // Common errors are network issues or model availability
         const errorObj = error as { code?: string; message?: string; error?: string }
+        const errorCode = errorObj?.code || ""
         const errorText = errorObj?.message || errorObj?.error || (error instanceof Error ? error.message : String(error))
         
-        // Provide helpful error message - no token/balance issues with Puter.js
-        let helpfulMessage = `Video generation encountered an issue. `
-        if (errorText.toLowerCase().includes("timeout") || errorText.toLowerCase().includes("timed out")) {
-          helpfulMessage += "The generation is taking longer than expected. Video generation can take 1-3 minutes. Please try again."
+        // Check for insufficient funds - Puter uses "User-Pays" model
+        const isInsufficientFunds = errorCode === "insufficient_funds" || 
+          errorText.toLowerCase().includes("insufficient") ||
+          errorText.toLowerCase().includes("funds") ||
+          errorText.toLowerCase().includes("balance") ||
+          errorText.toLowerCase().includes("credits")
+        
+        let helpfulMessage = ""
+        if (isInsufficientFunds) {
+          helpfulMessage = `**Need Puter Credits** 
+
+Video generation uses your Puter account credits. To generate videos:
+
+1. **Sign in to Puter** - Click "Sign In" at the top right
+2. **Get free credits** - New accounts get free credits to try AI features
+3. **Add more credits** - Visit [puter.com](https://puter.com) to add credits if needed
+
+Puter uses a "User-Pays" model where you control your own AI usage. This keeps the service free for developers!`
+        } else if (errorText.toLowerCase().includes("timeout") || errorText.toLowerCase().includes("timed out")) {
+          helpfulMessage = "Video generation is taking longer than expected. Video can take 1-3 minutes. Please try again."
         } else if (errorText.toLowerCase().includes("network") || errorText.toLowerCase().includes("fetch")) {
-          helpfulMessage += "Network connection issue. Please check your internet and try again."
-        } else if (errorText.toLowerCase().includes("token") || errorText.toLowerCase().includes("limit")) {
-          helpfulMessage += "Note: Puter.js provides FREE unlimited AI access. If you see token errors, please refresh the page and try again."
+          helpfulMessage = "Network connection issue. Please check your internet and try again."
         } else {
-          helpfulMessage += `Error: ${errorText}. Try a different prompt or model.`
+          helpfulMessage = `Video generation error: ${errorText}. Try a different prompt or model.`
         }
         
         const errorMessage: Message = {
@@ -1074,15 +1106,23 @@ export function GrokChat() {
         }
       } catch (error: unknown) {
         console.error("Image generation error:", error)
-        // Puter.js models are FREE and UNLIMITED
         const errorObj = error as { code?: string; message?: string; error?: string }
+        const errorCode = errorObj?.code || ""
         const errorText = errorObj?.message || errorObj?.error || (error instanceof Error ? error.message : String(error))
         
-        let helpfulMessage = `Image generation encountered an issue. `
-        if (errorText.toLowerCase().includes("token") || errorText.toLowerCase().includes("limit")) {
-          helpfulMessage += "Note: Puter.js provides FREE unlimited AI access. Please refresh and try again."
+        const isInsufficientFunds = errorCode === "insufficient_funds" || 
+          errorText.toLowerCase().includes("insufficient") ||
+          errorText.toLowerCase().includes("funds") ||
+          errorText.toLowerCase().includes("balance") ||
+          errorText.toLowerCase().includes("credits")
+        
+        let helpfulMessage = ""
+        if (isInsufficientFunds) {
+          helpfulMessage = `**Need Puter Credits**
+
+Image generation uses your Puter account credits. Sign in to Puter and ensure you have credits available. New accounts get free credits! Visit [puter.com](https://puter.com) to manage your account.`
         } else {
-          helpfulMessage += `Error: ${errorText}. Try a different prompt or model.`
+          helpfulMessage = `Image generation error: ${errorText}. Try a different prompt or model.`
         }
         
         const errorMessage: Message = {
